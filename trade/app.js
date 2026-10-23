@@ -163,7 +163,9 @@ async function openBox(url, key) {
   if (!res.ok) throw new Error(`load ${res.status}`);
   const box = await res.json();
   const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64d(box.iv) }, key, b64d(box.ct));
-  return new TextDecoder().decode(plain);
+  if (!box.z) return new TextDecoder().decode(plain);
+  // transcripts are gzipped before encryption (scripts/build.mjs)
+  return new Response(new Blob([plain]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
 }
 
 // On Studio, a visitor of the home page already has Studio's COOP/COEP service worker, and an
