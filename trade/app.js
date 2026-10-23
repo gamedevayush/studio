@@ -43,60 +43,60 @@ const MAIN = [
 // What he has decided so far for the sections that come in later stages.
 const LATER = [
   { id: 'market', label: 'Market Overview', stage: 4, icon: 'globe', lines: [
-    'Indian market: Nifty, Bank Nifty aur intraday stocks',
-    'Global markets ka Indian market pe asar',
+    'Indian market: Nifty, Bank Nifty and intraday stocks',
+    'Global market impact on the Indian market',
     'Crypto: Delta Exchange (BTC, ETH)',
-    'Data source abhi decide karna hai (Upstox ka free API sabse sasta option hai)'] },
+    'Data source to be decided (Upstox free API is the cheapest option)'] },
   { id: 'charts', label: 'Live Charts', stage: 4, icon: 'candles', lines: [
-    'Entry ke liye 5 min chart, trend ke liye 1 h aur upar',
+    '5 min chart for entries, 1 hr and above for trend',
     'Candles, higher high / lower low, support-resistance, rectangle, breakout, retest',
     'Supertrend, MACD, RSI'] },
   { id: 'signals', label: 'Trading Signals', stage: 4, icon: 'signal', lines: [
-    'Setup jis time pe bane, usi time alert (candle close hote hi)',
-    'Har signal mein entry, stop-loss, target aur reason',
-    'Sirf alert. Order aap khud lagaoge, system kabhi order nahi lagayega.'] },
+    'Instant alerts as soon as the setup forms (right when the candle closes)',
+    'Every signal contains entry, stop-loss, target, and rationale',
+    'Alerts only. Orders are placed manually by you; the system will never execute orders automatically.'] },
   { id: 'options', label: 'Options Analysis', stage: 5, icon: 'options', lines: [
     'Nifty / Bank Nifty options',
-    'Option premium ka apna chart',
-    'Open Interest aur OI change'] },
+    'Dedicated option premium charts',
+    'Open Interest and OI change'] },
   { id: 'backtest', label: 'Backtesting', stage: 3, icon: 'backtest', lines: [
     'Win rate, average profit/loss, max drawdown, risk-reward',
-    'Brokerage, charges aur slippage ke saath',
-    'YouTube strategies aur aapki strategies alag-alag test hongi',
-    'Past performance future ki guarantee nahi. Kamzoriyan bhi dikhayenge.'] },
+    'Factoring in brokerage, regulatory charges, and slippage',
+    'YouTube strategies and your custom strategies will be tested separately',
+    'Past performance is no guarantee of future results. Weaknesses will also be highlighted.'] },
   { id: 'alerts', label: 'Alerts', stage: 4, icon: 'bell', lines: [
-    'Telegram pe',
-    'Abhi se: har nayi YouTube strategy ka message',
-    'Baad mein: live setup alert'] },
+    'Via Telegram',
+    'Starting now: notification for every new YouTube strategy',
+    'Later: live setup alerts'] },
   { id: 'journal', label: 'Trade Journal', stage: 5, icon: 'journal', lines: [
-    'Har signal aur aapka actual trade',
-    'Result ke saath, taaki pata chale kaunsi strategy sach mein kaam karti hai'] },
+    'Every alert signal alongside your actual executed trade',
+    'Includes trade outcomes to verify which strategies actually work'] },
 ];
 
 const STAGES = [
   'Website + YouTube research + strategy library',
-  'Aapke apne rules, testable conditions mein',
+  'Your custom rules converted into testable conditions',
   'Historical data + backtesting',
-  'Live data, signals, Telegram alerts',
-  'Options, crypto, trade journal',
+  'Live data, signals, and Telegram alerts',
+  'Options, crypto, and trade journal',
 ];
 
 const SECTIONS = [
-  ['setup', 'Setup', 'Pehle kya banna chahiye'],
-  ['entry', 'Entry', 'Kab ghusna hai'],
+  ['setup', 'Setup', 'Pre-conditions that must form first'],
+  ['entry', 'Entry', 'When to enter'],
   ['stopLoss', 'Stop-loss', ''],
   ['target', 'Target', ''],
-  ['exit', 'Exit', 'Trailing, time ya baaki exits'],
-  ['filters', 'Filters', 'Confirmation, kab trade nahi lena'],
+  ['exit', 'Exit', 'Trailing, time-based, or alternative exits'],
+  ['filters', 'Filters', 'Confirmation criteria and when to avoid trades'],
 ];
 
 const STATUS = {
-  extracted: 'Strategy mili',
-  transcribed: 'Claude ka wait',
-  queued: 'Queue mein',
-  failed: 'Fail hua',
-  'no-strategy': 'Strategy nahi',
-  skipped: 'Skip',
+  extracted: 'Strategy extracted',
+  transcribed: 'Waiting for Claude',
+  queued: 'In queue',
+  failed: 'Failed',
+  'no-strategy': 'No strategy found',
+  skipped: 'Skipped',
 };
 
 const STYLE_NAMES = { options: 'Options', intraday: 'Intraday', swing: 'Swing', crypto: 'Crypto',
@@ -128,11 +128,11 @@ const date = (iso) => {
 const ago = (iso) => {
   if (!iso) return '';
   const min = Math.round((Date.now() - new Date(iso)) / 60000);
-  if (min < 1) return 'abhi';
-  if (min < 60) return `${min} min pehle`;
-  if (min < 1440) return `${Math.round(min / 60)} ghante pehle`;
-  if (min < 2880) return 'kal';
-  if (min < 43200) return `${Math.round(min / 1440)} din pehle`;
+  if (min < 1) return 'just now';
+  if (min < 60) return `${min}m ago`;
+  if (min < 1440) return `${Math.round(min / 60)}h ago`;
+  if (min < 2880) return 'yesterday';
+  if (min < 43200) return `${Math.round(min / 1440)}d ago`;
   return date(iso);
 };
 const yt = (id, t) => `https://www.youtube.com/watch?v=${id}${t ? `&t=${Math.floor(t)}s` : ''}`;
@@ -192,7 +192,7 @@ async function boot() {
   try {
     META = await (await fetch('meta.json', { cache: 'no-store' })).json();
   } catch {
-    showLock('Site load nahi hui. Internet check karke refresh karo.');
+    showLock('Failed to load site. Please check your internet connection and refresh.');
     return;
   }
   const saved = LS.get('lt.key');
@@ -231,7 +231,7 @@ $('#lock-form').addEventListener('submit', async (e) => {
     $('#pw').value = '';
     start();
   } catch (ex) {
-    err.textContent = ex.name === 'OperationError' ? 'Password galat hai.' : 'Load nahi hua, dobara try karo.';
+    err.textContent = ex.name === 'OperationError' ? 'Incorrect password.' : 'Failed to load, please try again.';
   } finally {
     btn.disabled = false; btn.textContent = 'Open';
   }
@@ -263,9 +263,9 @@ const meter = (c) => {
   const n = { idea: 1, partial: 2, full: 3 }[c] || 0;
   return `<span class="meter" title="${esc(c)}">${[1, 2, 3].map((i) => `<i class="${i <= n ? 'on' : ''}"></i>`).join('')}</span>`;
 };
-const COMPLETE = { full: 'Poori', partial: 'Adhoori', idea: 'Sirf idea' };
+const COMPLETE = { full: 'Complete', partial: 'Incomplete', idea: 'Concept only' };
 const srcLabel = (s) => s.source === 'mine'
-  ? '<span class="card-src"><span class="dot"></span>Meri strategy</span>'
+  ? '<span class="card-src"><span class="dot"></span>My Strategy</span>'
   : `<span class="card-src">${esc(CH[s.channel]?.name || s.channel)}</span>`;
 
 // ---------- shell ----------
@@ -279,7 +279,7 @@ function renderShell(current) {
     <a class="brand" href="#/"><span class="logo" aria-hidden="true"></span><span>Lets Trade</span></a>
     <div class="nav-label">Research</div>
     ${MAIN.map((i) => navItem(i, current)).join('')}
-    <div class="nav-label">Market · baad mein</div>
+    <div class="nav-label">Market · Later</div>
     ${LATER.map((i) => navItem(i, current)).join('')}
     <div class="side-foot"><span title="${esc(DATA.builtAt || '')}">${DATA.builtAt ? `Updated ${esc(ago(DATA.builtAt))}` : ''}</span>
       <button class="icon-btn" data-action="lock" aria-label="Lock" title="Lock">${icon('lock')}</button></div>`;
@@ -292,7 +292,7 @@ function renderShell(current) {
 function openSheet() {
   const sheet = $('#sheet');
   sheet.innerHTML = `<div class="sheet-card" role="dialog" aria-label="More sections">
-    <div class="nav-label">Market · baad mein</div>
+    <div class="nav-label">Market · Later</div>
     ${LATER.map((i) => navItem(i, null)).join('')}
     <button class="nav-item" data-action="lock" style="width:100%;background:none;border:0;cursor:pointer">${icon('lock')}<span>Lock</span></button>
   </div>`;
@@ -311,28 +311,28 @@ function pageHome() {
 
   return `
   <div class="page-head"><div><div class="kicker">Overview</div><h1>Trading desk</h1>
-    <p>Experts ki strategies, aapke apne rules, aur aage chal ke live signals. Sab ek jagah.</p></div></div>
+    <p>Expert strategies, your custom rules, and upcoming live signals. All in one place.</p></div></div>
 
   <div class="stats">
     <div class="stat"><div class="stat-label">Strategies</div><div class="stat-value">${ALL.length}</div>
-      <div class="stat-sub">${DATA.strategies.length} experts · ${DATA.mine.length} aapki</div></div>
-    <div class="stat"><div class="stat-label">Videos padh liye</div><div class="stat-value">${by('extracted').length + by('no-strategy').length}</div>
-      <div class="stat-sub">${by('no-strategy').length} mein strategy nahi thi</div></div>
+      <div class="stat-sub">${DATA.strategies.length} expert · ${DATA.mine.length} mine</div></div>
+    <div class="stat"><div class="stat-label">Videos processed</div><div class="stat-value">${by('extracted').length + by('no-strategy').length}</div>
+      <div class="stat-sub">${by('no-strategy').length} contained no strategy</div></div>
     <div class="stat"><div class="stat-label">Queue</div><div class="stat-value">${queue.length}</div>
-      <div class="stat-sub">${queue.length ? `~${Math.ceil(queueSec / DATA.budget)} din ka kaam` : 'khaali'}</div></div>
-    <div class="stat"><div class="stat-label">Claude ka wait</div><div class="stat-value">${by('transcribed').length}</div>
-      <div class="stat-sub">har 3 ghante check</div></div>
+      <div class="stat-sub">${queue.length ? `~${Math.ceil(queueSec / DATA.budget)} days remaining` : 'empty'}</div></div>
+    <div class="stat"><div class="stat-label">Waiting for Claude</div><div class="stat-value">${by('transcribed').length}</div>
+      <div class="stat-sub">checked every 3 hours</div></div>
   </div>
 
   <div class="grid-2">
     <div class="panel">
-      <div class="panel-head"><h2>Nayi strategies</h2><a href="#/library">Sab dekho</a></div>
+      <div class="panel-head"><h2>New strategies</h2><a href="#/library">View all</a></div>
       ${latest.length ? `<div class="list-rows">${latest.map((s) => `
         <a class="row" href="#/s/${esc(s.sid)}" style="grid-template-columns:1fr auto">
           <div><div class="row-title">${esc(s.name)}</div>
-          <div class="row-sub">${s.source === 'mine' ? 'Meri strategy' : esc(CH[s.channel]?.name)} · ${esc(ago(s.extractedAt || s.updatedAt))}</div></div>
+          <div class="row-sub">${s.source === 'mine' ? 'My Strategy' : esc(CH[s.channel]?.name)} · ${esc(ago(s.extractedAt || s.updatedAt))}</div></div>
           ${meter(s.completeness)}</a>`).join('')}</div>`
-      : `<div class="empty"><strong>Abhi koi strategy nahi</strong>Transcripts padhte hi Claude yahan strategies daalega, aur Telegram pe message aayega.</div>`}
+      : `<div class="empty"><strong>No strategies yet</strong>Once transcripts are analyzed, Claude will populate strategies here and trigger a Telegram notification.</div>`}
     </div>
 
     <div class="stack">
@@ -340,10 +340,10 @@ function pageHome() {
         <div class="panel-head"><h2>Pipeline</h2><a href="#/videos">Videos</a></div>
         <div class="facts">
           <div class="fact"><span>Channels</span><span>${DATA.channels.map((c) => esc(c.name)).join(', ')}</span></div>
-          <div class="fact"><span>Strategy wale videos</span><span class="mono">${tracked} / ${v.length}</span></div>
-          <div class="fact"><span>Naye videos check</span><span>har 3 ghante</span></div>
+          <div class="fact"><span>Strategy videos</span><span class="mono">${tracked} / ${v.length}</span></div>
+          <div class="fact"><span>New video check</span><span>Every 3 hours</span></div>
           <div class="fact" style="display:block"><div style="display:flex;justify-content:space-between">
-            <span class="muted">Gemini aaj (free)</span><span class="mono">${hours(used)} / ${hours(DATA.budget)}</span></div>
+            <span class="muted">Gemini today (free)</span><span class="mono">${hours(used)} / ${hours(DATA.budget)}</span></div>
             <div class="bar"><i style="width:${Math.min(100, used / DATA.budget * 100).toFixed(1)}%"></i></div></div>
         </div>
       </div>
@@ -351,7 +351,7 @@ function pageHome() {
         <div class="panel-head"><h2>Roadmap</h2></div>
         <div class="roadmap">${STAGES.map((t, i) => `
           <div class="step${i === 0 ? ' now' : ''}"><span class="step-n">${i + 1}</span><span>${esc(t)}</span>
-          ${i === 0 ? '<span class="tag tag-accent">Abhi</span>' : ''}</div>`).join('')}</div>
+          ${i === 0 ? '<span class="tag tag-accent">Current</span>' : ''}</div>`).join('')}</div>
       </div>
     </div>
   </div>`;
@@ -375,20 +375,20 @@ function pageLibrary() {
   const styles = ['options', 'intraday', 'swing', 'crypto'];
   return `
   <div class="page-head"><div><div class="kicker">Strategy Library</div><h1>Strategies</h1>
-    <p>Har rule pe likha hai ki expert ne <b>bataya</b> ya AI ka <b>andaza</b> hai. Jo video mein nahi tha, wo alag dikhta hai.</p></div></div>
+    <p>Every rule specifies whether it was <b>explicitly stated</b> by the expert or <b>inferred</b> by AI. Elements missing from the video are clearly tagged.</p></div></div>
   <div class="toolbar">
     <label class="search">${icon('search')}<input class="input" id="lib-q" type="search" placeholder="Search: rectangle, supertrend, bank nifty…" value="${esc(f.q)}"></label>
     <details class="filters" ${filtersOpen() ? 'open' : ''}><summary>Filters${activeFilters()}</summary><div class="toolbar">
-    ${chipRow('Source', 'src', [['all', 'Sab', ALL.length], ['expert', 'Experts', DATA.strategies.length], ['mine', 'Meri', DATA.mine.length]], f)}
-    ${chipRow('Channel', 'ch', [['all', 'Sab'], ...DATA.channels.map((c) => [c.id, c.name])], f)}
-    ${chipRow('Style', 'style', [['all', 'Sab'], ...styles.map((s) => [s, STYLE_NAMES[s]])], f)}
-    ${tfs.length ? chipRow('Timeframe', 'tf', [['all', 'Sab'], ...tfs.sort().map((t) => [t, t])], f) : ''}
-    ${chipRow('Rules', 'comp', [['all', 'Sab'], ['full', 'Poori'], ['partial', 'Adhoori'], ['idea', 'Sirf idea']], f)}
+    ${chipRow('Source', 'src', [['all', 'All', ALL.length], ['expert', 'Experts', DATA.strategies.length], ['mine', 'Mine', DATA.mine.length]], f)}
+    ${chipRow('Channel', 'ch', [['all', 'All'], ...DATA.channels.map((c) => [c.id, c.name])], f)}
+    ${chipRow('Style', 'style', [['all', 'All'], ...styles.map((s) => [s, STYLE_NAMES[s]])], f)}
+    ${tfs.length ? chipRow('Timeframe', 'tf', [['all', 'All'], ...tfs.sort().map((t) => [t, t])], f) : ''}
+    ${chipRow('Rules', 'comp', [['all', 'All'], ['full', 'Complete'], ['partial', 'Incomplete'], ['idea', 'Concept only']], f)}
     <div class="chips"><span class="lbl"></span>
-      <button class="chip" data-toggle="test" aria-pressed="${f.test}">Sirf backtest-ready</button>
+      <button class="chip" data-toggle="test" aria-pressed="${f.test}">Backtest-ready only</button>
       <select class="input" id="lib-sort" style="width:auto;height:30px;padding:0 10px;font-size:12.5px">
-        <option value="new"${f.sort === 'new' ? ' selected' : ''}>Naye pehle</option>
-        <option value="views"${f.sort === 'views' ? ' selected' : ''}>Zyada views</option>
+        <option value="new"${f.sort === 'new' ? ' selected' : ''}>Newest first</option>
+        <option value="views"${f.sort === 'views' ? ' selected' : ''}>Most views</option>
       </select></div>
     </div></details>
   </div>
@@ -424,7 +424,7 @@ function libResults() {
 
   $('#lib-results').innerHTML = `<div class="result-line">${list.length} ${list.length === 1 ? 'strategy' : 'strategies'}</div>` +
     (list.length ? `<div class="cards">${list.map(card).join('')}</div>`
-      : `<div class="panel empty"><strong>Kuch nahi mila</strong>${ALL.length ? 'Filters kam karke dekho.' : 'Library abhi khaali hai. Pehli strategies Claude ke agle run mein aayengi.'}</div>`);
+      : `<div class="panel empty"><strong>No results found</strong>${ALL.length ? 'Try clearing some filters.' : 'The library is currently empty. Strategies will appear following Claude’s next run.'}</div>`);
 }
 
 function card(s) {
@@ -435,37 +435,37 @@ function card(s) {
     <h3>${esc(s.name)}</h3>
     <p>${esc(s.summary)}</p>
     ${tags.length ? `<div class="tags">${tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}${s.testable ? '<span class="tag tag-accent">Backtest-ready</span>' : ''}</div>` : ''}
-    <div class="card-foot">${meter(s.completeness)}<span>${c.stated} bataya · ${c.inferred} andaza · ${c.missing} missing</span></div>
+    <div class="card-foot">${meter(s.completeness)}<span>${c.stated} stated · ${c.inferred} inferred · ${c.missing} missing</span></div>
   </a>`;
 }
 
 function pageStrategy(sid) {
   const s = ALL.find((x) => x.sid === sid);
-  if (!s) return `<a class="back" href="#/library">${icon('back')}Library</a><div class="panel empty"><strong>Strategy nahi mili</strong>Shayad update ho gayi. Library se dobara kholo.</div>`;
+  if (!s) return `<a class="back" href="#/library">${icon('back')}Library</a><div class="panel empty"><strong>Strategy not found</strong>It may have been modified or removed. Please reopen from the library.</div>`;
   const mine = s.source === 'mine';
   const dir = { long: '<span class="tag tag-up">Long / Buy</span>', short: '<span class="tag tag-down">Short / Sell</span>',
-    both: '<span class="tag tag-up">Buy</span> <span class="tag tag-down">Sell</span>' }[s.direction] || '<span class="faint">Nahi bataya</span>';
-  const list = (a) => (a && a.length ? esc(a.join(', ')) : '<span class="faint">Nahi bataya</span>');
+    both: '<span class="tag tag-up">Buy</span> <span class="tag tag-down">Sell</span>' }[s.direction] || '<span class="faint">Unspecified</span>';
+  const list = (a) => (a && a.length ? esc(a.join(', ')) : '<span class="faint">Unspecified</span>');
 
   const rule = (r) => r.basis === 'stated'
     ? `<li class="rule"><div class="rule-text">${esc(r.text)}</div><div class="rule-meta">
         ${Number.isFinite(r.t) && !mine ? `<a class="ts" href="${yt(s.videoId, r.t)}" target="_blank" rel="noopener">▶ ${clock(r.t)}</a>` : ''}
-        <span>${mine ? 'Aapne bataya' : 'Video mein bataya'}</span></div></li>`
+        <span>${mine ? 'Defined by you' : 'Stated in video'}</span></div></li>`
     : `<li class="rule inferred"><div class="rule-text">${esc(r.text)}</div>
-        <div class="rule-meta"><span>AI ka andaza</span></div>${r.why ? `<div class="rule-why">${esc(r.why)}</div>` : ''}</li>`;
+        <div class="rule-meta"><span>Inferred by AI</span></div>${r.why ? `<div class="rule-why">${esc(r.why)}</div>` : ''}</li>`;
 
   return `
   <a class="back" href="#/library">${icon('back')}Library</a>
   <div class="detail-head">
-    <div class="kicker">${mine ? 'Meri strategy' : `Expert · ${esc(CH[s.channel]?.name)}`}${s.kind === 'concept' ? ' · Concept' : ''}</div>
+    <div class="kicker">${mine ? 'My Strategy' : `Expert · ${esc(CH[s.channel]?.name)}`}${s.kind === 'concept' ? ' · Concept' : ''}</div>
     <h1>${esc(s.name)}</h1>
     <div class="src">${mine
       ? `<span>${s.status === 'final' ? 'Final' : 'Draft'}</span><span>Updated ${esc(date(s.updatedAt))}</span>`
       : `<a href="${yt(s.videoId)}" target="_blank" rel="noopener" style="display:inline-flex;gap:6px;align-items:center">${esc(s.videoTitle)} ${icon('ext')}</a>
          ${s.published ? `<span>${esc(date(s.published))}</span>` : ''}${s.views ? `<span>${views(s.views)} views</span>` : ''}`}</div>
     <p class="summary">${esc(s.summary)}</p>
-    <div class="legend"><span><i class="sw sw-stated"></i>${mine ? 'Aapne bataya' : 'Video mein bataya'}</span>
-      <span><i class="sw sw-inferred"></i>AI ka andaza</span><span><i class="sw sw-missing"></i>Nahi bataya</span></div>
+    <div class="legend"><span><i class="sw sw-stated"></i>${mine ? 'Defined by you' : 'Stated in video'}</span>
+      <span><i class="sw sw-inferred"></i>Inferred by AI</span><span><i class="sw sw-missing"></i>Unspecified</span></div>
   </div>
 
   <div class="grid-2">
@@ -473,11 +473,11 @@ function pageStrategy(sid) {
       <div class="panel rules">${SECTIONS.map(([k, label, sub]) => {
         const items = s.rules?.[k] || [];
         return `<div class="rule-sec"><h2>${label}${sub ? `<div class="faint" style="font-size:11.5px;margin-top:2px">${sub}</div>` : ''}</h2>
-          ${items.length ? `<ul class="rule-list">${items.map(rule).join('')}</ul>` : '<div class="rule-none">Nahi bataya</div>'}</div>`;
+          ${items.length ? `<ul class="rule-list">${items.map(rule).join('')}</ul>` : '<div class="rule-none">Unspecified</div>'}</div>`;
       }).join('')}</div>
-      ${(s.missing || []).length ? `<div class="panel"><div class="panel-head"><h2>${mine ? 'Abhi decide karna hai' : 'Video mein nahi bataya'}</h2></div>
+      ${(s.missing || []).length ? `<div class="panel"><div class="panel-head"><h2>${mine ? 'Pending decision' : 'Not stated in video'}</h2></div>
         <div class="panel-body"><ul class="missing-list">${s.missing.map((m) => `<li>${esc(m)}</li>`).join('')}</ul></div></div>` : ''}
-      ${(s.cautions || []).length ? `<div class="panel"><div class="panel-head"><h2>${mine ? 'Dhyan rakhna' : 'Expert ki warnings'}</h2></div>
+      ${(s.cautions || []).length ? `<div class="panel"><div class="panel-head"><h2>${mine ? 'Points to note' : 'Expert warnings'}</h2></div>
         <div class="panel-body"><ul class="plain-list">${s.cautions.map((m) => `<li>${esc(m)}</li>`).join('')}</ul></div></div>` : ''}
     </div>
 
@@ -491,12 +491,12 @@ function pageStrategy(sid) {
         <div class="fact"><span>Indicators</span><span>${list(s.indicators)}</span></div>
         <div class="fact"><span>Patterns</span><span>${list(s.patterns)}</span></div>
         <div class="fact" style="display:block"><div style="display:flex;justify-content:space-between;gap:10px"><span class="muted">Backtest</span>
-          ${s.testable ? '<span class="tag tag-accent">Ready</span>' : '<span class="tag">Abhi nahi</span>'}</div>
+          ${s.testable ? '<span class="tag tag-accent">Ready</span>' : '<span class="tag">Not ready</span>'}</div>
           ${s.testableWhy ? `<div class="faint" style="font-size:12.5px;margin-top:6px">${esc(s.testableWhy)}</div>` : ''}</div>
       </div>
       ${mine ? '' : `<div class="panel"><a href="#/v/${esc(s.videoId)}" style="display:block;padding:12px">
         <img class="thumb" style="width:100%" src="${thumb(s.videoId)}" alt="" loading="lazy">
-        <div style="margin-top:10px;display:flex;justify-content:space-between;font-size:13px"><span>Transcript dekho</span><span class="muted">${esc(CH[s.channel]?.name)}</span></div></a></div>`}
+        <div style="margin-top:10px;display:flex;justify-content:space-between;font-size:13px"><span>View transcript</span><span class="muted">${esc(CH[s.channel]?.name)}</span></div></a></div>`}
     </div>
   </div>`;
 }
@@ -525,13 +525,13 @@ function pageVideos() {
   const n = (st) => inCh.filter((v) => v.st === st || (st === 'queued' && v.st === 'failed')).length;
   return `
   <div class="page-head"><div><div class="kicker">YouTube Research</div><h1>Videos</h1>
-    <p>Teeno channels ke normal videos (Shorts aur lives nahi). Queue ka order: naye uploads, phir purani strategy videos, phir concept videos, sabse zyada views pehle.</p></div></div>
+    <p>Standard videos across all three channels (excluding Shorts and livestreams). Processing queue order: new uploads, then past strategy videos, then concept videos, sorted by highest views.</p></div></div>
   <div class="toolbar">
-    <label class="search">${icon('search')}<input class="input" id="vid-q" type="search" placeholder="Video title search…" value="${esc(f.q)}"></label>
-    ${chipRow('Channel', 'ch', [['all', 'Sab', DATA.videos.length], ...DATA.channels.map((c) => [c.id, c.name, DATA.videos.filter((v) => v.c === c.id).length])], f)}
+    <label class="search">${icon('search')}<input class="input" id="vid-q" type="search" placeholder="Search video titles…" value="${esc(f.q)}"></label>
+    ${chipRow('Channel', 'ch', [['all', 'All', DATA.videos.length], ...DATA.channels.map((c) => [c.id, c.name, DATA.videos.filter((v) => v.c === c.id).length])], f)}
     ${chipRow('Status', 'st', [['extracted', STATUS.extracted, n('extracted')], ['transcribed', STATUS.transcribed, n('transcribed')],
       ['queued', STATUS.queued, n('queued')], ['no-strategy', STATUS['no-strategy'], n('no-strategy')], ['skipped', STATUS.skipped, n('skipped')],
-      ['all', 'Sab', inCh.length]], f)}
+      ['all', 'All', inCh.length]], f)}
   </div>
   <div id="vid-results"></div>`;
 }
@@ -549,29 +549,29 @@ function vidResults() {
           ${v.err ? `<div class="row-sub" style="color:var(--down)">${esc(v.err.slice(0, 120))}</div>` : ''}</div>
         <span class="st st-${v.st}">${esc(STATUS[v.st] || v.st)}${v.ns ? ` · ${v.ns}` : ''}</span>
       </a>`).join('')}
-      ${list.length > shown.length ? `<div class="more"><button class="btn" data-action="more-videos">Aur dikhao (${list.length - shown.length})</button></div>` : ''}</div>`
-    : `<div class="panel empty"><strong>Is filter mein koi video nahi</strong></div>`);
+      ${list.length > shown.length ? `<div class="more"><button class="btn" data-action="more-videos">Show more (${list.length - shown.length})</button></div>` : ''}</div>`
+    : `<div class="panel empty"><strong>No videos match this filter</strong></div>`);
 }
 
 function pageVideo(id) {
   const v = VID[id];
-  if (!v) return `<a class="back" href="#/videos">${icon('back')}Videos</a><div class="panel empty"><strong>Video nahi mila</strong></div>`;
+  if (!v) return `<a class="back" href="#/videos">${icon('back')}Videos</a><div class="panel empty"><strong>Video not found</strong></div>`;
   const strategies = DATA.strategies.filter((s) => s.videoId === id);
   return `
   <a class="back" href="#/videos">${icon('back')}Videos</a>
   <div class="detail-head">
     <div class="kicker">${esc(CH[v.c]?.name)} · ${esc(STATUS[v.st] || v.st)}</div>
     <h1>${esc(v.ti)}</h1>
-    <div class="src"><a href="${yt(v.id)}" target="_blank" rel="noopener" style="display:inline-flex;gap:6px;align-items:center">YouTube pe kholo ${icon('ext')}</a>
+    <div class="src"><a href="${yt(v.id)}" target="_blank" rel="noopener" style="display:inline-flex;gap:6px;align-items:center">Open on YouTube ${icon('ext')}</a>
       ${v.p ? `<span>${esc(date(v.p))}</span>` : ''}${v.vw ? `<span>${views(v.vw)} views</span>` : ''}${v.d ? `<span>${clock(v.d)}</span>` : ''}</div>
     ${v.sum ? `<p class="summary">${esc(v.sum)}</p>` : ''}
-    ${v.st === 'skipped' ? `<p class="muted" style="margin:0">Title se lagta hai ye ${esc(v.l)} video hai (${esc(v.why || '')}), isliye skip hua.</p>` : ''}
+    ${v.st === 'skipped' ? `<p class="muted" style="margin:0">Appears to be a ${esc(v.l)} video based on title (${esc(v.why || '')}), skipped.</p>` : ''}
     ${v.err ? `<p style="margin:0;color:var(--down)">${esc(v.err)}</p>` : ''}
   </div>
   ${strategies.length ? `<div class="cards" style="margin-bottom:16px">${strategies.map(card).join('')}</div>` : ''}
-  ${v.tr ? `<div class="panel"><div class="panel-head"><h2>Transcript</h2><span class="faint" style="font-size:12px">Gemini ne video se likha · timestamp pe click = YouTube</span></div>
-    <div class="transcript" id="transcript"><p class="faint" style="display:block">Load ho raha hai…</p></div></div>`
-    : `<div class="panel empty"><strong>Transcript abhi nahi bana</strong>${v.st === 'queued' ? 'Queue mein hai. Free Gemini roz ~7 ghante ka video padhta hai.' : ''}</div>`}`;
+  ${v.tr ? `<div class="panel"><div class="panel-head"><h2>Transcript</h2><span class="faint" style="font-size:12px">Transcribed by Gemini · Click timestamp to view on YouTube</span></div>
+    <div class="transcript" id="transcript"><p class="faint" style="display:block">Loading…</p></div></div>`
+    : `<div class="panel empty"><strong>Transcript not generated yet</strong>${v.st === 'queued' ? 'Queued. Free Gemini processes ~7 hours of video daily.' : ''}</div>`}`;
 }
 
 async function loadTranscript(id) {
@@ -588,25 +588,25 @@ async function loadTranscript(id) {
       const screen = /^\[screen:/i.test(m[2]);
       return `<p><a class="ts" href="${yt(id, sec)}" target="_blank" rel="noopener">${m[1]}</a><span class="${screen ? 'screen' : ''}">${esc(m[2])}</span></p>`;
     }).join('');
-    box.innerHTML = html || '<p class="faint" style="display:block">Transcript khaali hai.</p>';
+    box.innerHTML = html || '<p class="faint" style="display:block">Transcript is empty.</p>';
   } catch {
-    box.innerHTML = '<p style="display:block;color:var(--down)">Transcript load nahi hua.</p>';
+    box.innerHTML = '<p style="display:block;color:var(--down)">Failed to load transcript.</p>';
   }
 }
 
 function pageMine() {
   const mine = DATA.mine;
-  const NOTE = { new: ['Naya', ''], discussed: ['Baat ho gayi', 'tag-accent'], done: ['Strategy mein add', 'tag-up'] };
+  const NOTE = { new: ['New', ''], discussed: ['Discussed', 'tag-accent'], done: ['Added to strategy', 'tag-up'] };
   return `
-  <div class="page-head"><div><div class="kicker">My Strategies</div><h1>Meri strategies</h1>
-    <p>Aapke apne rules, experts se alag. Strategy Claude Code mein explain karo, har rule exact banake yahan save hoga. Baad mein kuch yaad aaye toh neeche note likh do.</p></div></div>
+  <div class="page-head"><div><div class="kicker">My Strategies</div><h1>My Strategies</h1>
+    <p>Your custom trading rules, separate from expert models. Explain your strategy in Claude Code, and each rule will be converted into structured parameters here. Add quick notes below for later reference.</p></div></div>
   <div class="grid-2">
     <div>${mine.length ? `<div class="cards">${mine.map(card).join('')}</div>`
-      : `<div class="panel empty"><strong>Abhi koi strategy save nahi hui</strong>Claude Code mein bolo: “Lets Trade: meri strategy add karni hai”. Step by step poochhunga, phir yahan aa jayegi.</div>`}</div>
+      : `<div class="panel empty"><strong>No custom strategies saved yet</strong>Say "Lets Trade: add my strategy" in Claude Code. We will break it down step-by-step and save it here.</div>`}</div>
     <div class="stack">
-      <form class="panel" id="note-form"><div class="panel-head"><h2>Quick note</h2><span class="faint" style="font-size:12px">Bhool na jao, isliye</span></div>
+      <form class="panel" id="note-form"><div class="panel-head"><h2>Quick note</h2><span class="faint" style="font-size:12px">Quick memory capture</span></div>
         <div class="panel-body">
-          <textarea class="input" id="note-text" required maxlength="4000" placeholder="Jaise: rectangle breakout ke baad retest pe entry, sirf jab Supertrend green ho. SL rectangle ke neeche…"></textarea>
+          <textarea class="input" id="note-text" required maxlength="4000" placeholder="Example: Enter on retest after rectangle breakout, only when Supertrend is green. SL below the rectangle…"></textarea>
           <div class="form-row"><span class="form-msg" id="note-msg"></span><button class="btn btn-primary" id="note-save" type="submit">Save</button></div>
         </div></form>
       <div class="panel"><div class="panel-head"><h2>Notes</h2><span class="faint mono">${DATA.notes.length}</span></div>
@@ -615,7 +615,7 @@ function pageMine() {
           return `<div class="note"><div class="note-text">${esc(n.text)}</div>
             <div class="note-meta"><span>${esc(ago(n.at))}</span><span class="tag ${cls}">${label}</span></div>
             ${n.reply ? `<div class="muted" style="font-size:13px">${esc(n.reply)}</div>` : ''}</div>`;
-        }).join('') : '<div class="empty">Koi note nahi.</div>'}
+        }).join('') : '<div class="empty">No notes recorded.</div>'}
       </div>
     </div>
   </div>`;
@@ -630,10 +630,10 @@ async function saveNote(e) {
   if (!DATA.notesToken) {
     try { await navigator.clipboard.writeText(text); } catch { /* clipboard blocked */ }
     msg.className = 'form-msg err';
-    msg.textContent = 'Note save ka token abhi set nahi hai. Text copy ho gaya, Claude Code mein paste kar do.';
+    msg.textContent = 'Note saving token is not configured. Text has been copied to your clipboard; paste it into Claude Code.';
     return;
   }
-  btn.disabled = true; msg.textContent = 'Save ho raha hai…';
+  btn.disabled = true; msg.textContent = 'Saving…';
   const at = new Date().toISOString();
   const note = { id: at.replace(/[:.]/g, '-'), at, text, status: 'new' };
   try {
@@ -649,10 +649,10 @@ async function saveNote(e) {
     DATA.notes.unshift(note);
     render();
     const m = $('#note-msg');
-    if (m) { m.className = 'form-msg ok'; m.textContent = 'Save ho gaya. Agli baar baat karte waqt isko rule banayenge.'; }
+    if (m) { m.className = 'form-msg ok'; m.textContent = 'Saved successfully. We will convert this into a strategy rule during our next session.'; }
   } catch (ex) {
     msg.className = 'form-msg err';
-    msg.textContent = `Save nahi hua (${ex.message}). Dobara try karo.`;
+    msg.textContent = `Failed to save (${ex.message}). Please try again.`;
     btn.disabled = false;
   }
 }
@@ -661,8 +661,8 @@ function pageLater(id) {
   const l = LATER.find((x) => x.id === id);
   if (!l) return pageHome();
   return `
-  <div class="page-head"><div><div class="kicker">Stage ${l.stage} · abhi bana nahi</div><h1>${esc(l.label)}</h1>
-    <p>Ye section baad ke stage mein banega. Ab tak jo decide hua hai:</p></div></div>
+  <div class="page-head"><div><div class="kicker">Stage ${l.stage} · In development</div><h1>${esc(l.label)}</h1>
+    <p>This section is scheduled for a future release stage. Planned features so far:</p></div></div>
   <div class="panel"><div class="panel-body"><ul class="later-list">${l.lines.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div></div>`;
 }
 
@@ -686,7 +686,7 @@ function render() {
   const key = `${page}/${arg}`;
   if (key !== lastPage) window.scrollTo(0, 0);
   lastPage = key;
-  const title = { library: 'Strategies', videos: 'Videos', mine: 'Meri strategies' }[page];
+  const title = { library: 'Strategies', videos: 'Videos', mine: 'My Strategies' }[page];
   document.title = title ? `${title} · Lets Trade` : 'Lets Trade';
 }
 
