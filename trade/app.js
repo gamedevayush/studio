@@ -712,15 +712,16 @@ const istTime = (ms) => { const d = new Date(ms + 330 * 60000); return hm(d.getU
 
 function pageLive() {
   return `
-  <div class="page-head"><div><div class="kicker">Live Market</div><h1>Nifty · Bank Nifty · Sensex</h1>
+  <div class="page-head"><div><div class="kicker">Live Market</div><h1>Nifty · Bank Nifty · Sensex · Crypto</h1>
     <p id="live-status">Connecting…</p></div></div>
   <div id="live-body"><div class="panel empty"><strong>Loading live data…</strong></div></div>`;
 }
 
-function spark(points, prevClose) {
+// points [[x, price]]; x is the IST minute of the day for indices (9:15-15:30), epoch minutes for crypto (last 24 h).
+function spark(points, prevClose, [x0, xEnd] = [555, 930]) {
   if (points.length < 2) return '<div class="faint" style="font-size:12px;padding:18px 0">No ticks yet today</div>';
   const W = 300, H = 64, xs = points.map((p) => p[0]), ys = points.map((p) => p[1]).concat(prevClose ? [prevClose] : []);
-  const x0 = 555, x1 = Math.max(930, ...xs), y0 = Math.min(...ys), y1 = Math.max(...ys), dy = (y1 - y0) || 1;
+  const x1 = Math.max(xEnd, ...xs), y0 = Math.min(...ys), y1 = Math.max(...ys), dy = (y1 - y0) || 1;
   const X = (m) => ((m - x0) / (x1 - x0)) * W, Y = (v) => H - 4 - ((v - y0) / dy) * (H - 8);
   const up = points[points.length - 1][1] >= (prevClose ?? points[0][1]);
   return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:64px;display:block" role="img" aria-label="Today's price line">
@@ -748,6 +749,59 @@ function liveCard(w) {
     </div></div>`;
 }
 
+// Crypto prices: 4 decimals under 50 (XRP), else 2.
+const cnum = (n) => num(n, n !== null && n !== undefined && Math.abs(n) < 50 ? 4 : 2);
+
+function cryptoCard(c, nowMin) {
+  const up = (c.chg ?? 0) >= 0, cls = up ? 'up' : 'down';
+  const trend = c.ema9 && c.ema20 ? (c.ema9 > c.ema20 ? '<span class="tag tag-up">1 h EMA 9 above 20</span>' : '<span class="tag tag-down">1 h EMA 9 below 20</span>') : '';
+  const st = c.stDir ? `<span class="tag tag-${c.stDir === 1 ? 'up' : 'down'}">1 h Supertrend ${c.stDir === 1 ? 'green' : 'red'} ${cnum(c.st)}</span>` : '';
+  return `<div class="panel" style="padding:16px;display:grid;gap:10px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">
+      <div><div class="muted" style="font-size:12.5px">${esc(c.name)} · ${esc(c.pair)} · Delta</div>
+        <div style="font:500 26px/1.2 var(--mono);letter-spacing:-.02em">$${cnum(c.ltp)}</div></div>
+      <div style="text-align:right;color:var(--${cls});font-family:var(--mono);font-size:13px">${c.chg === undefined ? '' : `${up ? '+' : ''}${cnum(c.chg)}<br>${up ? '+' : ''}${num(c.chgPct)}% 24 h`}</div>
+    </div>
+    ${spark(c.spark || [], c.open24, [nowMin - 1440, nowMin])}
+    <div class="tags">${trend}${st}</div>
+    <div class="facts" style="margin:0 -16px -16px">
+      <div class="fact"><span>24 h high / low</span><span class="mono">${cnum(c.high24)} / ${cnum(c.low24)}</span></div>
+      <div class="fact"><span>Yesterday high / low (IST day)</span><span class="mono">${cnum(c.pdh)} / ${cnum(c.pdl)}</span></div>
+      <div class="fact"><span>Price 24 h ago</span><span class="mono">${cnum(c.open24)}</span></div>
+    </div></div>`;
+}
+
+function alertRows(list, n) {
+  return list.length ? `<div class="list-rows">${list.map((a) => `
+    <div class="row" style="grid-template-columns:52px 1fr;cursor:default">
+      <span class="mono faint">${istTime(a.at)}</span>
+      <div><div class="row-title">${esc(a.name)} · <span style="color:var(--${/↑/.test(a.title) || a.dir === 'up' ? 'up' : /↓/.test(a.title) || a.dir === 'down' ? 'down' : 'text'})">${esc(a.title)}</span></div>
+        <div class="row-sub">${esc(a.body)}</div>
+        ${a.plan ? `<div class="row-sub mono">${a.plan.dir === 'up' ? 'Buy' : 'Sell'}-stop ${n(a.plan.entry)} · stop ${n(a.plan.stop)} · 2R ${n(a.plan.target)}${a.ref ? ` · ${esc(a.ref)}` : ''}</div>` : ''}</div>
+    </div>`).join('')}</div>`
+    : '<div class="empty">No alerts yet. They also arrive on Telegram.</div>';
+}
+
+function cryptoSection(cr, now) {
+  if (!cr) return '';
+  const nowMin = Math.floor(now / 60000);
+  return `
+    <div class="page-head" style="margin-top:28px"><div><div class="kicker">Crypto · Delta Exchange India · 24 hours</div><h2 style="margin:0">Ethereum · Solana · XRP</h2>
+      <p>${cr.lastRun ? `Updated ${istTime(cr.lastRun)} IST · prices every minute, setups on each closed 1 hour candle` : 'Starting up: the first prices arrive within a few minutes.'}</p></div></div>
+    ${cr.error ? `<div class="panel" style="margin-bottom:12px;padding:12px 16px;color:var(--down)">Last problem: ${esc(cr.error)}</div>` : ''}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:16px">${cr.coins.map((c) => cryptoCard(c, nowMin)).join('')}</div>
+    <div class="grid-2">
+      <div class="panel"><div class="panel-head"><h2>Crypto alerts · last 24 hours</h2><span class="faint mono">${cr.alerts.length}</span></div>${alertRows(cr.alerts, cnum)}</div>
+      <div class="panel"><div class="panel-head"><h2>What triggers a crypto alert</h2></div>
+        <div class="panel-body"><ul class="plain-list">
+          <li>Quick move: ${cr.rules.movePct}% or more within ${cr.rules.moveMin} minutes (at most one per ${cr.rules.cooldown} min per coin)</li>
+          <li>Yesterday's high or low (IST day) broken on a 1 hour close</li>
+          <li>9/20 EMA pullback with a strong 1 hour close (plan: AI Manual setups 1 and 10)</li>
+          <li>Supertrend (10,3) turns green or red on a 1 hour close (Varsity ch. 20)</li>
+        </ul><p class="faint" style="margin:10px 0 0;font-size:12.5px">Prices in US dollars from Delta Exchange India perpetual futures (public data, no account). No opening range: crypto trades all day. Alerts only, never orders; the setups were written for Indian intraday charts and are untested on crypto.</p></div></div>
+    </div>`;
+}
+
 function renderLive() {
   const box = $('#live-body'), line = $('#live-status');
   if (!box) return;
@@ -767,14 +821,7 @@ function renderLive() {
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:16px">${d.watch.map(liveCard).join('')}</div>
     <div class="grid-2">
       <div class="panel"><div class="panel-head"><h2>Alerts · ${esc(d.day)}</h2><span class="faint mono">${d.alerts.length}</span></div>
-        ${d.alerts.length ? `<div class="list-rows">${d.alerts.map((a) => `
-          <div class="row" style="grid-template-columns:52px 1fr;cursor:default">
-            <span class="mono faint">${istTime(a.at)}</span>
-            <div><div class="row-title">${esc(a.name)} · <span style="color:var(--${/↑/.test(a.title) || a.dir === 'up' ? 'up' : /↓/.test(a.title) || a.dir === 'down' ? 'down' : 'text'})">${esc(a.title)}</span></div>
-              <div class="row-sub">${esc(a.body)}</div>
-              ${a.plan ? `<div class="row-sub mono">${a.plan.dir === 'up' ? 'Buy' : 'Sell'}-stop ${num(a.plan.entry)} · stop ${num(a.plan.stop)} · 2R ${num(a.plan.target)}${a.ref ? ` · ${esc(a.ref)}` : ''}</div>` : ''}</div>
-          </div>`).join('')}</div>`
-        : '<div class="empty">No alerts yet. They also arrive on Telegram.</div>'}</div>
+        ${alertRows(d.alerts, num)}</div>
       <div class="panel"><div class="panel-head"><h2>What triggers an alert</h2></div>
         <div class="panel-body"><ul class="plain-list">
           <li>Quick move: ${d.rules.movePct}% or more within ${d.rules.moveMin} minutes (at most one per ${d.rules.cooldown} min per index)</li>
@@ -783,7 +830,8 @@ function renderLive() {
           <li>9/20 EMA pullback with a strong close (plan: AI Manual setups 1 and 10)</li>
           <li>Supertrend (10,3) turns green or red on a 5 min close (Varsity ch. 20)</li>
         </ul><p class="faint" style="margin:10px 0 0;font-size:12.5px">Alerts only, never orders. Plans come from untested library setups; check the chart before acting. Indices have no volume, so volume rules are not used.</p></div></div>
-    </div>`;
+    </div>
+    ${cryptoSection(d.crypto, d.now)}`;
 }
 
 async function loadLive() {
@@ -806,7 +854,8 @@ function startLive() {
   loadLive();
   liveTimer = setInterval(() => {
     if (!location.hash.startsWith('#/live')) { clearInterval(liveTimer); return; }
-    if (document.visibilityState === 'visible' && (marketOpen(liveData?.status) || !liveData || liveData.error)) loadLive();
+    // Crypto trades all day, so the page keeps refreshing outside Indian market hours too.
+    if (document.visibilityState === 'visible') loadLive();
   }, 30000);
 }
 
