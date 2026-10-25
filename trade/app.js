@@ -29,6 +29,7 @@ const ICONS = {
   search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
   back: '<path d="M15 6l-6 6 6 6"/>',
   ext: '<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
+  close: '<path d="M6 6l12 12M18 6 6 18"/>',
 };
 const icon = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]}</svg>`;
 
@@ -733,14 +734,14 @@ function liveCard(w) {
   const up = (w.chg ?? 0) >= 0, cls = up ? 'up' : 'down';
   const trend = w.ema9 && w.ema20 ? (w.ema9 > w.ema20 ? '<span class="tag tag-up">EMA 9 above 20</span>' : '<span class="tag tag-down">EMA 9 below 20</span>') : '';
   const st = w.stDir ? `<span class="tag tag-${w.stDir === 1 ? 'up' : 'down'}">Supertrend ${w.stDir === 1 ? 'green' : 'red'} ${num(w.st, 0)}</span>` : '';
-  return `<div class="panel" style="padding:16px;display:grid;gap:10px">
+  return `<div class="panel live-card" data-chart="${esc(w.sym)}" role="button" tabindex="0" aria-label="Open the ${esc(w.name)} chart" style="padding:16px;display:grid;gap:10px">
     <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">
       <div><div class="muted" style="font-size:12.5px">${esc(w.name)} · ${esc(w.exch)}</div>
         <div style="font:500 26px/1.2 var(--mono);letter-spacing:-.02em">${num(w.ltp)}</div></div>
       <div style="text-align:right;color:var(--${cls});font-family:var(--mono);font-size:13px">${w.chg === undefined ? '' : `${up ? '+' : ''}${num(w.chg)}<br>${up ? '+' : ''}${num(w.chgPct)}%`}</div>
     </div>
     ${spark(w.spark || [], w.prevClose)}
-    <div class="tags">${trend}${st}</div>
+    <div class="tags">${trend}${st}<span class="chart-hint">${icon('candles')}Chart</span></div>
     <div class="facts" style="margin:0 -16px -16px">
       <div class="fact"><span>Day high / low</span><span class="mono">${num(w.high)} / ${num(w.low)}</span></div>
       <div class="fact"><span>Yesterday high / low</span><span class="mono">${num(w.pdh)} / ${num(w.pdl)}</span></div>
@@ -756,14 +757,14 @@ function cryptoCard(c, nowMin) {
   const up = (c.chg ?? 0) >= 0, cls = up ? 'up' : 'down';
   const trend = c.ema9 && c.ema20 ? (c.ema9 > c.ema20 ? '<span class="tag tag-up">1 h EMA 9 above 20</span>' : '<span class="tag tag-down">1 h EMA 9 below 20</span>') : '';
   const st = c.stDir ? `<span class="tag tag-${c.stDir === 1 ? 'up' : 'down'}">1 h Supertrend ${c.stDir === 1 ? 'green' : 'red'} ${cnum(c.st)}</span>` : '';
-  return `<div class="panel" style="padding:16px;display:grid;gap:10px">
+  return `<div class="panel live-card" data-chart="${esc(c.sym)}" role="button" tabindex="0" aria-label="Open the ${esc(c.name)} chart" style="padding:16px;display:grid;gap:10px">
     <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">
       <div><div class="muted" style="font-size:12.5px">${esc(c.name)} · ${esc(c.pair)} · Delta</div>
         <div style="font:500 26px/1.2 var(--mono);letter-spacing:-.02em">$${cnum(c.ltp)}</div></div>
       <div style="text-align:right;color:var(--${cls});font-family:var(--mono);font-size:13px">${c.chg === undefined ? '' : `${up ? '+' : ''}${cnum(c.chg)}<br>${up ? '+' : ''}${num(c.chgPct)}% 24 h`}</div>
     </div>
     ${spark(c.spark || [], c.open24, [nowMin - 1440, nowMin])}
-    <div class="tags">${trend}${st}</div>
+    <div class="tags">${trend}${st}<span class="chart-hint">${icon('candles')}Chart</span></div>
     <div class="facts" style="margin:0 -16px -16px">
       <div class="fact"><span>24 h high / low</span><span class="mono">${cnum(c.high24)} / ${cnum(c.low24)}</span></div>
       <div class="fact"><span>Yesterday high / low (IST day)</span><span class="mono">${cnum(c.pdh)} / ${cnum(c.pdl)}</span></div>
@@ -832,6 +833,10 @@ function renderLive() {
         </ul><p class="faint" style="margin:10px 0 0;font-size:12.5px">Alerts only, never orders. Plans come from untested library setups; check the chart before acting. Indices have no volume, so volume rules are not used.</p></div></div>
     </div>
     ${cryptoSection(d.crypto, d.now)}`;
+  box.onclick = (e) => { const el = e.target.closest('[data-chart]'); if (el) openChart(el.dataset.chart); };
+  box.onkeydown = (e) => {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-chart]')) { e.preventDefault(); openChart(e.target.dataset.chart); }
+  };
 }
 
 async function loadLive() {
@@ -857,6 +862,191 @@ function startLive() {
     // Crypto trades all day, so the page keeps refreshing outside Indian market hours too.
     if (document.visibilityState === 'visible') loadLive();
   }, 30000);
+}
+
+// ---------- chart (tap a card on the Live page) ----------
+// TradingView Lightweight Charts (site/lwc.js, Apache 2.0, loaded on first use). The library shows UTC, so
+// times are shifted by +5:30 to read as IST. Data: worker /chart (candles + EMA/Supertrend + levels + alerts).
+let chartView = null; // { sym, tf, coin, chart, s: series, lines, timer, fit }
+const IST_S = 19800;
+const TF_LABEL = { 15: '15 min', 60: '1 hour' };
+const EMA20_COLOR = '#7aa2f7';
+const ALERT_SHORT = { orb: 'OR', pdh: 'Y high', pdl: 'Y low', 'ema-pullback': 'EMA', supertrend: 'ST', move: 'Move' };
+
+function loadChartLib() {
+  if (window.LightweightCharts) return Promise.resolve();
+  return new Promise((ok, fail) => {
+    const s = document.createElement('script');
+    s.src = 'lwc.js';
+    s.onload = ok;
+    s.onerror = () => fail(new Error('the chart library did not load'));
+    document.head.appendChild(s);
+  });
+}
+
+function openChart(sym) {
+  closeChart(false);
+  const coin = Boolean(liveData?.crypto?.coins?.some((c) => c.sym === sym));
+  const m = document.createElement('div');
+  m.className = 'chart-modal';
+  m.id = 'chart-modal';
+  m.setAttribute('role', 'dialog');
+  m.setAttribute('aria-modal', 'true');
+  m.innerHTML = `<div class="chart-box">
+    <div class="chart-head">
+      <div style="min-width:0"><div class="chart-title" id="chart-title">${esc(sym)}</div>
+        <div class="faint" id="chart-sub" style="font-size:12px;margin-top:2px">Loading…</div></div>
+      <div class="chart-tools">
+        <div class="chips">${[15, 60].map((tf) => `<button class="chip" data-tf="${tf}">${TF_LABEL[tf]}</button>`).join('')}</div>
+        <button class="icon-btn" id="chart-close" aria-label="Close chart">${icon('close')}</button>
+      </div>
+    </div>
+    <div class="chart-area" id="chart-area"></div>
+    <div class="chart-legend">
+      <span><i style="background:var(--accent)"></i>EMA 9</span><span><i style="background:${EMA20_COLOR}"></i>EMA 20</span>
+      <span><i style="background:linear-gradient(90deg,var(--up) 50%,var(--down) 50%)"></i>Supertrend 10,3</span>
+      <span><i class="dash"></i>Yesterday high / low</span>${coin ? '' : '<span><i class="dots"></i>Opening range</span>'}
+      <span>▲ ▼ alert fired</span>
+      <span class="faint">Lines use this chart's candles; ${coin ? 'crypto setups alert on 1 hour candles' : 'index setups alert on 5 min candles'}.</span>
+    </div>
+  </div>`;
+  document.body.appendChild(m);
+  document.body.style.overflow = 'hidden';
+  history.pushState({ chart: sym }, '', location.href); // phone back button closes the chart
+  m.addEventListener('click', (e) => {
+    if (e.target === m || e.target.closest('#chart-close')) return closeChart(true);
+    const b = e.target.closest('[data-tf]');
+    if (b) setChartTf(Number(b.dataset.tf));
+  });
+  chartView = { sym, coin, tf: coin ? 60 : 15 };
+  chartView.timer = setInterval(() => {
+    if (document.visibilityState === 'visible' && (chartView?.coin || marketOpen(liveData?.status))) loadChart();
+  }, 30000);
+  setChartTf(chartView.tf);
+}
+
+function closeChart(useBack) {
+  if (!chartView) return;
+  clearInterval(chartView.timer);
+  chartView.chart?.remove();
+  chartView = null;
+  $('#chart-modal')?.remove();
+  document.body.style.overflow = '';
+  if (useBack && history.state?.chart) history.back();
+}
+window.addEventListener('popstate', () => closeChart(false));
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeChart(true); });
+
+function setChartTf(tf) {
+  const v = chartView;
+  v.tf = tf;
+  document.querySelectorAll('#chart-modal [data-tf]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.tf) === tf)));
+  v.chart?.remove();
+  v.chart = null;
+  v.fit = true;
+  loadChart();
+}
+
+async function loadChart() {
+  const v = chartView;
+  if (!v) return;
+  const tf = v.tf;
+  try {
+    await loadChartLib();
+    const res = await fetch(`${DATA.live.url}/chart?sym=${encodeURIComponent(v.sym)}&tf=${tf}`, { headers: { 'x-live-key': DATA.live.key }, cache: 'no-store' });
+    if (!res.ok) throw new Error(`the live watch answered ${res.status}`);
+    const d = await res.json();
+    if (d.error) throw new Error(d.error);
+    if (chartView === v && v.tf === tf) drawChart(v, d); // skip if closed or switched meanwhile
+  } catch (ex) {
+    if (chartView === v) $('#chart-sub').textContent = `Could not load the chart: ${ex.message}`;
+  }
+}
+
+function drawChart(v, d) {
+  const L = window.LightweightCharts;
+  const css = getComputedStyle(document.documentElement), cv = (n) => css.getPropertyValue(n).trim();
+  const c = d.candles;
+  const lastClose = c.length ? c[c.length - 1][4] : null;
+  const dec = lastClose !== null && Math.abs(lastClose) < 50 ? 4 : 2;
+  const T = (ms) => Math.floor(ms / 1000) + IST_S;
+
+  const line = (color, extra = {}) => v.chart.addLineSeries({ color, lineWidth: 1, priceLineVisible: false, lastValueVisible: false,
+    crosshairMarkerVisible: false, ...extra });
+  if (!v.chart) {
+    v.chart = L.createChart($('#chart-area'), {
+      autoSize: true,
+      layout: { background: { type: 'solid', color: cv('--panel') }, textColor: cv('--muted'), fontFamily: "'JetBrains Mono', monospace", fontSize: 11 },
+      grid: { vertLines: { color: cv('--line') }, horzLines: { color: cv('--line') } },
+      rightPriceScale: { borderColor: cv('--line-2') },
+      timeScale: { borderColor: cv('--line-2'), timeVisible: true, secondsVisible: false, rightOffset: 3 },
+      crosshair: { mode: L.CrosshairMode.Normal },
+      localization: { priceFormatter: (p) => num(p, dec) },
+    });
+    v.s = {
+      candles: v.chart.addCandlestickSeries({ upColor: cv('--up'), downColor: cv('--down'), wickUpColor: cv('--up'), wickDownColor: cv('--down'),
+        borderVisible: false, priceFormat: { type: 'price', precision: dec, minMove: 1 / 10 ** dec } }),
+      ema9: line(cv('--accent')),
+      ema20: line(EMA20_COLOR),
+    };
+    v.lines = [];
+    v.stLines = [];
+  }
+
+  v.s.candles.setData(c.map((k) => ({ time: T(k[0]), open: k[1], high: k[2], low: k[3], close: k[4] })));
+  const pts = (i) => c.filter((k) => k[i] !== null).map((k) => ({ time: T(k[0]), value: k[i] }));
+  v.s.ema9.setData(pts(5));
+  v.s.ema20.setData(pts(6));
+  // Supertrend: one line per run of the same direction, so a flip shows as a break (the library joins across gaps).
+  v.stLines.forEach((s) => v.chart.removeSeries(s));
+  v.stLines = [];
+  const runs = [];
+  for (const k of c) {
+    if (k[7] === null || k[8] === null) continue;
+    if (!runs.length || runs[runs.length - 1].dir !== k[8]) runs.push({ dir: k[8], pts: [] });
+    runs[runs.length - 1].pts.push({ time: T(k[0]), value: k[7] });
+  }
+  for (const r of runs) {
+    const s = line(cv(r.dir === 1 ? '--up' : '--down'), { lineWidth: 2, lineType: L.LineType.WithSteps });
+    s.setData(r.pts);
+    v.stLines.push(s);
+  }
+
+  v.lines.forEach((p) => v.s.candles.removePriceLine(p));
+  v.lines = [];
+  const level = (price, title, color, lineStyle) => {
+    if (price !== null && price !== undefined) v.lines.push(v.s.candles.createPriceLine({ price, title, color, lineWidth: 1, lineStyle, axisLabelVisible: true }));
+  };
+  level(d.levels.pdh, 'Y high', cv('--muted'), L.LineStyle.Dashed);
+  level(d.levels.pdl, 'Y low', cv('--muted'), L.LineStyle.Dashed);
+  level(d.levels.orh, 'OR high', cv('--accent'), L.LineStyle.Dotted);
+  level(d.levels.orl, 'OR low', cv('--accent'), L.LineStyle.Dotted);
+
+  // Each alert on the candle it belongs to: setups fire about a minute after their candle closed.
+  const markers = [];
+  for (const a of d.alerts) {
+    const ref = a.at - (a.kind === 'move' ? 0 : 90000);
+    let k = null;
+    for (const x of c) { if (x[0] <= ref) k = x; else break; }
+    if (!k) continue;
+    const up = /↑/.test(a.title) || a.dir === 'up', down = /↓/.test(a.title) || a.dir === 'down';
+    markers.push({ time: T(k[0]), position: down ? 'aboveBar' : 'belowBar', color: down ? cv('--down') : up ? cv('--up') : cv('--accent'),
+      shape: down ? 'arrowDown' : up ? 'arrowUp' : 'circle', text: ALERT_SHORT[a.kind] || a.kind });
+  }
+  v.s.candles.setMarkers(markers.sort((a, b) => a.time - b.time));
+
+  if (v.fit) { // open on the latest candles, about 8 px per candle
+    const n = Math.max(30, Math.round($('#chart-area').clientWidth / 8));
+    v.chart.timeScale().setVisibleLogicalRange({ from: c.length - n, to: c.length + 3 });
+    v.fit = false;
+  }
+
+  const it = liveData?.watch?.find((w) => w.sym === v.sym) || liveData?.crypto?.coins?.find((x) => x.sym === v.sym) || {};
+  const price = it.ltp ?? lastClose, fmtP = (n) => (v.coin ? `$${cnum(n)}` : num(n));
+  $('#chart-title').innerHTML = `${esc(d.name)} <span class="mono">${fmtP(price)}</span>${it.chgPct !== undefined && it.chgPct !== null
+    ? ` <span class="mono" style="color:var(--${it.chgPct >= 0 ? 'up' : 'down'});font-weight:500">${it.chgPct >= 0 ? '+' : ''}${num(it.chgPct)}%${v.coin ? ' 24 h' : ''}</span>` : ''}`;
+  $('#chart-sub').textContent = `${TF_LABEL[d.tf]} candles · ${v.coin ? 'Delta Exchange, USD' : 'Upstox'} · ${istTime(d.at)} IST`
+    + (v.coin || marketOpen(liveData?.status) ? ' · updates every 30 s' : ' · market closed');
 }
 
 // ---------- router ----------
