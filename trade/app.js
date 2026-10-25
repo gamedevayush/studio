@@ -35,18 +35,14 @@ const icon = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICO
 // ---------- navigation ----------
 const MAIN = [
   { id: 'home', href: '#/', label: 'Overview', short: 'Home', icon: 'home' },
+  { id: 'live', href: '#/live', label: 'Live Market', short: 'Live', icon: 'signal' },
   { id: 'library', href: '#/library', label: 'Strategy Library', short: 'Library', icon: 'library' },
-  { id: 'videos', href: '#/videos', label: 'YouTube Research', short: 'Videos', icon: 'videos' },
+  { id: 'videos', href: '#/videos', label: 'YouTube Research', short: 'Videos', icon: 'videos', dock: false },
   { id: 'mine', href: '#/mine', label: 'My Strategies', short: 'Mine', icon: 'mine' },
 ];
 
 // What he has decided so far for the sections that come in later stages.
 const LATER = [
-  { id: 'market', label: 'Market Overview', stage: 4, icon: 'globe', lines: [
-    'Live from 9:15 AM to 3:30 PM: Nifty 50, Bank Nifty, Sensex and stocks you pick',
-    'Ups and downs flagged as they happen: big quick moves, key level breaks, strategy setups',
-    'Data: Angel One SmartAPI (decided 25 Oct 2026), checked every minute by a Cloudflare worker',
-    'Later: global market impact, crypto on Delta Exchange (BTC, ETH)'] },
   { id: 'charts', label: 'Live Charts', stage: 4, icon: 'candles', lines: [
     '5 min chart for entries, 1 hr and above for trend',
     'Candles, higher high / lower low, support-resistance, rectangle, breakout, retest',
@@ -66,8 +62,9 @@ const LATER = [
     'Past performance is no guarantee of future results. Weaknesses will also be highlighted.'] },
   { id: 'alerts', label: 'Alerts', stage: 4, icon: 'bell', lines: [
     'Via Telegram',
-    'Now: a message for every new strategy (new YouTube uploads, books and manuals)',
-    'Next: live market alerts during market hours'] },
+    'Now: every new strategy (new YouTube uploads, books, manuals)',
+    'Now: live market alerts 9:15-3:30 (see Live Market)',
+    'Later: choose which alerts to get from the site'] },
   { id: 'journal', label: 'Trade Journal', stage: 5, icon: 'journal', lines: [
     'Every alert signal alongside your actual executed trade',
     'Includes trade outcomes to verify which strategies actually work'] },
@@ -77,7 +74,7 @@ const STAGES = [
   'Website + strategy library (books, manuals, new YouTube uploads)',
   'Your custom rules converted into testable conditions',
   'Historical data + backtesting',
-  'Live data, signals, and Telegram alerts',
+  'Live data, signals, and Telegram alerts (live watch running)',
   'Options, crypto, and trade journal',
 ];
 
@@ -291,8 +288,8 @@ function renderShell(current) {
     ${LATER.map((i) => navItem(i, current)).join('')}
     <div class="side-foot"><span title="${esc(DATA.builtAt || '')}">${DATA.builtAt ? `Updated ${esc(ago(DATA.builtAt))}` : ''}</span>
       <button class="icon-btn" data-action="lock" aria-label="Lock" title="Lock">${icon('lock')}</button></div>`;
-  const laterOn = LATER.some((l) => l.id === current);
-  $('#dock').innerHTML = MAIN.map((i) =>
+  const laterOn = LATER.some((l) => l.id === current) || MAIN.some((i) => i.dock === false && i.id === current);
+  $('#dock').innerHTML = MAIN.filter((i) => i.dock !== false).map((i) =>
     `<a href="${i.href}" class="${i.id === current ? 'on' : ''}">${icon(i.icon)}<span>${i.short}</span></a>`).join('') +
     `<button data-action="sheet" class="${laterOn ? 'on' : ''}">${icon('more')}<span>More</span></button>`;
 }
@@ -300,6 +297,7 @@ function renderShell(current) {
 function openSheet() {
   const sheet = $('#sheet');
   sheet.innerHTML = `<div class="sheet-card" role="dialog" aria-label="More sections">
+    ${MAIN.filter((i) => i.dock === false).map((i) => navItem(i, null)).join('')}
     <div class="nav-label">Market · Later</div>
     ${LATER.map((i) => navItem(i, null)).join('')}
     <button class="nav-item" data-action="lock" style="width:100%;background:none;border:0;cursor:pointer">${icon('lock')}<span>Lock</span></button>
@@ -704,19 +702,129 @@ function pageLater(id) {
   <div class="panel"><div class="panel-body"><ul class="later-list">${l.lines.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div></div>`;
 }
 
+// ---------- live market ----------
+let liveTimer = null, liveData = null;
+const IST = () => { const d = new Date(Date.now() + 330 * 60000); return { day: d.toISOString().slice(0, 10), m: d.getUTCHours() * 60 + d.getUTCMinutes(), dow: d.getUTCDay() }; };
+const marketOpen = (st) => { const t = IST(); return t.dow > 0 && t.dow < 6 && t.m >= 555 && t.m <= 930 && st?.closedDay !== t.day; };
+const num = (n, d = 2) => (n === null || n === undefined ? '–' : Number(n).toLocaleString('en-IN', { minimumFractionDigits: d, maximumFractionDigits: d }));
+const hm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+const istTime = (ms) => { const d = new Date(ms + 330 * 60000); return hm(d.getUTCHours() * 60 + d.getUTCMinutes()); };
+
+function pageLive() {
+  return `
+  <div class="page-head"><div><div class="kicker">Live Market</div><h1>Nifty · Bank Nifty · Sensex</h1>
+    <p id="live-status">Connecting…</p></div></div>
+  <div id="live-body"><div class="panel empty"><strong>Loading live data…</strong></div></div>`;
+}
+
+function spark(points, prevClose) {
+  if (points.length < 2) return '<div class="faint" style="font-size:12px;padding:18px 0">No ticks yet today</div>';
+  const W = 300, H = 64, xs = points.map((p) => p[0]), ys = points.map((p) => p[1]).concat(prevClose ? [prevClose] : []);
+  const x0 = 555, x1 = Math.max(930, ...xs), y0 = Math.min(...ys), y1 = Math.max(...ys), dy = (y1 - y0) || 1;
+  const X = (m) => ((m - x0) / (x1 - x0)) * W, Y = (v) => H - 4 - ((v - y0) / dy) * (H - 8);
+  const up = points[points.length - 1][1] >= (prevClose ?? points[0][1]);
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:64px;display:block" role="img" aria-label="Today's price line">
+    ${prevClose ? `<line x1="0" x2="${W}" y1="${Y(prevClose).toFixed(1)}" y2="${Y(prevClose).toFixed(1)}" stroke="var(--line-2)" stroke-dasharray="3 3"/>` : ''}
+    <polyline fill="none" stroke="var(--${up ? 'up' : 'down'})" stroke-width="1.6" points="${points.map((p) => `${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join(' ')}"/></svg>`;
+}
+
+function liveCard(w) {
+  const up = (w.chg ?? 0) >= 0, cls = up ? 'up' : 'down';
+  const trend = w.ema9 && w.ema20 ? (w.ema9 > w.ema20 ? '<span class="tag tag-up">EMA 9 above 20</span>' : '<span class="tag tag-down">EMA 9 below 20</span>') : '';
+  const st = w.stDir ? `<span class="tag tag-${w.stDir === 1 ? 'up' : 'down'}">Supertrend ${w.stDir === 1 ? 'green' : 'red'} ${num(w.st, 0)}</span>` : '';
+  return `<div class="panel" style="padding:16px;display:grid;gap:10px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">
+      <div><div class="muted" style="font-size:12.5px">${esc(w.name)} · ${esc(w.exch)}</div>
+        <div style="font:500 26px/1.2 var(--mono);letter-spacing:-.02em">${num(w.ltp)}</div></div>
+      <div style="text-align:right;color:var(--${cls});font-family:var(--mono);font-size:13px">${w.chg === undefined ? '' : `${up ? '+' : ''}${num(w.chg)}<br>${up ? '+' : ''}${num(w.chgPct)}%`}</div>
+    </div>
+    ${spark(w.spark || [], w.prevClose)}
+    <div class="tags">${trend}${st}</div>
+    <div class="facts" style="margin:0 -16px -16px">
+      <div class="fact"><span>Day high / low</span><span class="mono">${num(w.high)} / ${num(w.low)}</span></div>
+      <div class="fact"><span>Yesterday high / low</span><span class="mono">${num(w.pdh)} / ${num(w.pdl)}</span></div>
+      <div class="fact"><span>Opening range (9:15-9:30)</span><span class="mono">${num(w.orh)} / ${num(w.orl)}</span></div>
+      <div class="fact"><span>Previous close</span><span class="mono">${num(w.prevClose)}</span></div>
+    </div></div>`;
+}
+
+function renderLive() {
+  const box = $('#live-body'), line = $('#live-status');
+  if (!box) return;
+  const d = liveData;
+  if (!d) return;
+  if (d.error) {
+    line.textContent = 'Could not reach the live watch.';
+    box.innerHTML = `<div class="panel empty"><strong>${esc(d.error)}</strong>It retries every 30 seconds.</div>`;
+    return;
+  }
+  const open = marketOpen(d.status);
+  line.innerHTML = !d.status.keys ? 'Waiting for the Angel One API keys. The live watch is deployed and checks every minute once they are added.'
+    : open ? `Market open · updated ${d.status.lastRun ? istTime(d.status.lastRun) : '–'} IST · refreshes every 30 s`
+    : `Market closed · showing ${esc(d.day)}${d.status.closedDay === IST().day ? ' (exchange holiday today)' : ''}`;
+  box.innerHTML = `
+    ${d.status.lastError ? `<div class="panel" style="margin-bottom:12px;padding:12px 16px;color:var(--down)">Last problem: ${esc(d.status.lastError)}</div>` : ''}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:16px">${d.watch.map(liveCard).join('')}</div>
+    <div class="grid-2">
+      <div class="panel"><div class="panel-head"><h2>Alerts · ${esc(d.day)}</h2><span class="faint mono">${d.alerts.length}</span></div>
+        ${d.alerts.length ? `<div class="list-rows">${d.alerts.map((a) => `
+          <div class="row" style="grid-template-columns:52px 1fr;cursor:default">
+            <span class="mono faint">${istTime(a.at)}</span>
+            <div><div class="row-title">${esc(a.name)} · <span style="color:var(--${/↑/.test(a.title) || a.dir === 'up' ? 'up' : /↓/.test(a.title) || a.dir === 'down' ? 'down' : 'text'})">${esc(a.title)}</span></div>
+              <div class="row-sub">${esc(a.body)}</div>
+              ${a.plan ? `<div class="row-sub mono">${a.plan.dir === 'up' ? 'Buy' : 'Sell'}-stop ${num(a.plan.entry)} · stop ${num(a.plan.stop)} · 2R ${num(a.plan.target)}${a.ref ? ` · ${esc(a.ref)}` : ''}</div>` : ''}</div>
+          </div>`).join('')}</div>`
+        : '<div class="empty">No alerts yet. They also arrive on Telegram.</div>'}</div>
+      <div class="panel"><div class="panel-head"><h2>What triggers an alert</h2></div>
+        <div class="panel-body"><ul class="plain-list">
+          <li>Quick move: ${d.rules.movePct}% or more within ${d.rules.moveMin} minutes (at most one per ${d.rules.cooldown} min per index)</li>
+          <li>Opening range break: a 5 min close beyond the 9:15-9:30 high/low (plan: AI Manual setup 61)</li>
+          <li>Yesterday's high or low broken on a 5 min close</li>
+          <li>9/20 EMA pullback with a strong close (plan: AI Manual setups 1 and 10)</li>
+          <li>Supertrend (10,3) turns green or red on a 5 min close (Varsity ch. 20)</li>
+        </ul><p class="faint" style="margin:10px 0 0;font-size:12.5px">Alerts only, never orders. Plans come from untested library setups; check the chart before acting. Indices have no volume, so volume rules are not used.</p></div></div>
+    </div>`;
+}
+
+async function loadLive() {
+  if (!DATA.live?.url || !DATA.live?.key) {
+    liveData = { error: 'The live watch is not connected to this site yet.' };
+    return renderLive();
+  }
+  try {
+    const res = await fetch(`${DATA.live.url}/live`, { headers: { 'x-live-key': DATA.live.key }, cache: 'no-store' });
+    if (!res.ok) throw new Error(`Live watch answered ${res.status}`);
+    liveData = await res.json();
+  } catch (ex) {
+    liveData = { error: ex.message || 'Network error' };
+  }
+  renderLive();
+}
+
+function startLive() {
+  clearInterval(liveTimer);
+  loadLive();
+  liveTimer = setInterval(() => {
+    if (!location.hash.startsWith('#/live')) { clearInterval(liveTimer); return; }
+    if (document.visibilityState === 'visible' && (marketOpen(liveData?.status) || !liveData || liveData.error)) loadLive();
+  }, 30000);
+}
+
 // ---------- router ----------
 let lastPage = '';
 function render() {
   const [page = '', arg = ''] = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
   const current = { '': 'home', s: 'library', v: 'videos', later: arg }[page] ?? page;
+  if (page !== 'live') clearInterval(liveTimer);
   renderShell(current);
   $('#sheet').hidden = true;
 
   const view = $('#view');
-  const pages = { '': pageHome, library: pageLibrary, s: () => pageStrategy(arg), videos: pageVideos,
+  const pages = { '': pageHome, live: pageLive, library: pageLibrary, s: () => pageStrategy(arg), videos: pageVideos,
     v: () => pageVideo(arg), mine: pageMine, later: () => pageLater(arg) };
   view.innerHTML = (pages[page] || pageHome)();
   if (page === 'library') libResults();
+  if (page === 'live') startLive();
   if (page === 'videos') vidResults();
   if (page === 'v') loadTranscript(arg);
   if (page === 'mine') $('#note-form').addEventListener('submit', saveNote);
@@ -724,7 +832,7 @@ function render() {
   const key = `${page}/${arg}`;
   if (key !== lastPage) window.scrollTo(0, 0);
   lastPage = key;
-  const title = { library: 'Strategies', videos: 'Videos', mine: 'My Strategies' }[page];
+  const title = { live: 'Live Market', library: 'Strategies', videos: 'Videos', mine: 'My Strategies' }[page];
   document.title = title ? `${title} · Lets Trade` : 'Lets Trade';
 }
 
