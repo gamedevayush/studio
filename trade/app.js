@@ -43,10 +43,10 @@ const MAIN = [
 // What he has decided so far for the sections that come in later stages.
 const LATER = [
   { id: 'market', label: 'Market Overview', stage: 4, icon: 'globe', lines: [
-    'Indian market: Nifty, Bank Nifty and intraday stocks',
-    'Global market impact on the Indian market',
-    'Crypto: Delta Exchange (BTC, ETH)',
-    'Data source to be decided (Upstox free API is the cheapest option)'] },
+    'Live from 9:15 AM to 3:30 PM: Nifty 50, Bank Nifty, Sensex and stocks you pick',
+    'Ups and downs flagged as they happen: big quick moves, key level breaks, strategy setups',
+    'Data: Angel One SmartAPI (decided 25 Oct 2026), checked every minute by a Cloudflare worker',
+    'Later: global market impact, crypto on Delta Exchange (BTC, ETH)'] },
   { id: 'charts', label: 'Live Charts', stage: 4, icon: 'candles', lines: [
     '5 min chart for entries, 1 hr and above for trend',
     'Candles, higher high / lower low, support-resistance, rectangle, breakout, retest',
@@ -66,15 +66,15 @@ const LATER = [
     'Past performance is no guarantee of future results. Weaknesses will also be highlighted.'] },
   { id: 'alerts', label: 'Alerts', stage: 4, icon: 'bell', lines: [
     'Via Telegram',
-    'Starting now: notification for every new YouTube strategy',
-    'Later: live setup alerts'] },
+    'Now: a message for every new strategy (new YouTube uploads, books and manuals)',
+    'Next: live market alerts during market hours'] },
   { id: 'journal', label: 'Trade Journal', stage: 5, icon: 'journal', lines: [
     'Every alert signal alongside your actual executed trade',
     'Includes trade outcomes to verify which strategies actually work'] },
 ];
 
 const STAGES = [
-  'Website + YouTube research + strategy library',
+  'Website + strategy library (books, manuals, new YouTube uploads)',
   'Your custom rules converted into testable conditions',
   'Historical data + backtesting',
   'Live data, signals, and Telegram alerts',
@@ -92,7 +92,7 @@ const SECTIONS = [
 
 const STATUS = {
   extracted: 'Strategy extracted',
-  transcribed: 'Waiting for Claude',
+  transcribed: 'Waiting for strategy check',
   queued: 'In queue',
   failed: 'Failed',
   'no-strategy': 'No strategy found',
@@ -246,13 +246,14 @@ function lock() {
 }
 
 // ---------- data helpers ----------
-let CH = {}, ALL = [], VID = {};
+let CH = {}, ALL = [], VID = {}, DOC = {};
 
 function prepare() {
   CH = Object.fromEntries(DATA.channels.map((c) => [c.id, c]));
   VID = Object.fromEntries(DATA.videos.map((v) => [v.id, v]));
+  DOC = Object.fromEntries((DATA.docs || []).map((d) => [d.docId, d]));
   ALL = [...DATA.mine, ...DATA.strategies];
-  if (!DATA.videos.some((v) => v.st === 'extracted')) ui.vid.st = 'queued';
+  if (!DATA.videos.some((v) => v.st === 'extracted')) ui.vid.st = 'all';
 }
 
 const rulesOf = (s) => SECTIONS.flatMap(([k]) => s.rules?.[k] || []);
@@ -266,9 +267,14 @@ const meter = (c) => {
   return `<span class="meter" title="${esc(c)}">${[1, 2, 3].map((i) => `<i class="${i <= n ? 'on' : ''}"></i>`).join('')}</span>`;
 };
 const COMPLETE = { full: 'Complete', partial: 'Incomplete', idea: 'Concept only' };
+// Where a strategy came from: his own rules, a book/manual he shared, or a new YouTube upload.
+const srcName = (s) => s.source === 'mine' ? 'My Strategy'
+  : s.source === 'doc' ? (DOC[s.docId]?.short || DOC[s.docId]?.title || s.docId)
+  : CH[s.channel]?.name || s.channel;
 const srcLabel = (s) => s.source === 'mine'
   ? '<span class="card-src"><span class="dot"></span>My Strategy</span>'
-  : `<span class="card-src">${esc(CH[s.channel]?.name || s.channel)}</span>`;
+  : `<span class="card-src">${esc(srcName(s))}</span>`;
+const untested = (s) => s.source === 'doc' && DOC[s.docId]?.kind === 'manual';
 
 // ---------- shell ----------
 function navItem(item, current) {
@@ -305,45 +311,65 @@ function openSheet() {
 function pageHome() {
   const v = DATA.videos;
   const by = (st) => v.filter((x) => x.st === st);
-  const queue = v.filter((x) => x.st === 'queued' || x.st === 'failed');
-  const queueSec = queue.reduce((a, x) => a + (x.d || 1800), 0);
   const used = DATA.usage?.day === pacificDay() ? DATA.usage.seconds || 0 : 0;
-  const latest = [...ALL].sort((a, b) => (b.extractedAt || b.updatedAt || '').localeCompare(a.extractedAt || a.updatedAt || '')).slice(0, 6);
-  const tracked = v.filter((x) => x.st !== 'skipped').length;
+  const latest = [...ALL].filter((s) => s.source !== 'doc')
+    .sort((a, b) => (b.extractedAt || b.updatedAt || '').localeCompare(a.extractedAt || a.updatedAt || '')).slice(0, 6);
+  const fromDocs = DATA.strategies.filter((s) => s.source === 'doc').length;
+  const fromVideos = DATA.strategies.length - fromDocs;
+  const waiting = by('queued').length + by('failed').length + by('transcribed').length;
 
   return `
   <div class="page-head"><div><div class="kicker">Overview</div><h1>Trading desk</h1>
-    <p>Expert strategies, your custom rules, and upcoming live signals. All in one place.</p></div></div>
+    <p>Strategies from the books and manuals you shared, new expert videos and your own rules. Live market alerts are next.</p></div></div>
 
   <div class="stats">
     <div class="stat"><div class="stat-label">Strategies</div><div class="stat-value">${ALL.length}</div>
-      <div class="stat-sub">${DATA.strategies.length} expert · ${DATA.mine.length} mine</div></div>
-    <div class="stat"><div class="stat-label">Videos processed</div><div class="stat-value">${by('extracted').length + by('no-strategy').length}</div>
-      <div class="stat-sub">${by('no-strategy').length} contained no strategy</div></div>
-    <div class="stat"><div class="stat-label">Queue</div><div class="stat-value">${queue.length}</div>
-      <div class="stat-sub">${queue.length ? `~${Math.ceil(queueSec / DATA.budget)} days remaining` : 'empty'}</div></div>
-    <div class="stat"><div class="stat-label">Waiting for Claude</div><div class="stat-value">${by('transcribed').length}</div>
-      <div class="stat-sub">checked every 3 hours</div></div>
+      <div class="stat-sub">${fromDocs} from books · ${fromVideos} from videos · ${DATA.mine.length} mine</div></div>
+    <div class="stat"><div class="stat-label">Backtest-ready</div><div class="stat-value">${ALL.filter((s) => s.testable).length}</div>
+      <div class="stat-sub">every rule can be checked by a computer</div></div>
+    <div class="stat"><div class="stat-label">New videos checked</div><div class="stat-value">${by('extracted').length + by('no-strategy').length + by('skipped').length}</div>
+      <div class="stat-sub">${by('extracted').length} with a strategy · ${waiting} waiting</div></div>
+    <div class="stat"><div class="stat-label">Next video check</div><div class="stat-value">${nextCheck()}</div>
+      <div class="stat-sub">twice a day, 8:00 and 18:00 IST</div></div>
   </div>
 
   <div class="grid-2">
-    <div class="panel">
-      <div class="panel-head"><h2>New strategies</h2><a href="#/library">View all</a></div>
-      ${latest.length ? `<div class="list-rows">${latest.map((s) => `
-        <a class="row" href="#/s/${esc(s.sid)}" style="grid-template-columns:1fr auto">
-          <div><div class="row-title">${esc(s.name)}</div>
-          <div class="row-sub">${s.source === 'mine' ? 'My Strategy' : esc(CH[s.channel]?.name)} · ${esc(ago(s.extractedAt || s.updatedAt))}</div></div>
-          ${meter(s.completeness)}</a>`).join('')}</div>`
-      : `<div class="empty"><strong>No strategies yet</strong>Once transcripts are analyzed, Claude will populate strategies here and trigger a Telegram notification.</div>`}
+    <div class="stack">
+      <div class="panel">
+        <div class="panel-head"><h2>Sources</h2><a href="#/library">Library</a></div>
+        <div class="list-rows">${(DATA.docs || []).map((d) => `
+          <a class="row" href="#/library" data-src="${esc(d.docId)}" style="grid-template-columns:1fr auto">
+            <div><div class="row-title">${esc(d.title)}</div>
+            <div class="row-sub">${esc(d.publisher || '')} · ${d.pages} pages · ${esc(d.trust || '')}</div></div>
+            <span class="mono">${d.count}</span></a>`).join('')}
+          <a class="row" href="#/videos" style="grid-template-columns:1fr auto">
+            <div><div class="row-title">New uploads: ${DATA.channels.map((c) => esc(c.name)).join(', ')}</div>
+            <div class="row-sub">Checked twice a day, transcribed and read by free Gemini. Old videos are not read.</div></div>
+            <span class="mono">${fromVideos}</span></a></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>New from videos</h2><a href="#/videos">Videos</a></div>
+        ${latest.length ? `<div class="list-rows">${latest.map((s) => `
+          <a class="row" href="#/s/${esc(s.sid)}" style="grid-template-columns:1fr auto">
+            <div><div class="row-title">${esc(s.name)}</div>
+            <div class="row-sub">${esc(srcName(s))} · ${esc(ago(s.extractedAt || s.updatedAt))}</div></div>
+            ${meter(s.completeness)}</a>`).join('')}</div>`
+        : `<div class="empty"><strong>No new-video strategies yet</strong>When a channel uploads a strategy video, it appears here and on Telegram.</div>`}
+      </div>
     </div>
 
     <div class="stack">
       <div class="panel">
-        <div class="panel-head"><h2>Pipeline</h2><a href="#/videos">Videos</a></div>
+        <div class="panel-head"><h2>Market sites</h2></div>
+        <div class="list-rows">${(DATA.links || []).map((l) => `
+          <a class="row" href="${esc(l.url)}" target="_blank" rel="noopener" style="grid-template-columns:1fr auto">
+            <div><div class="row-title">${esc(l.name)}</div><div class="row-sub">${esc(l.use)}</div></div>${icon('ext')}</a>`).join('')}</div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>Video pipeline</h2></div>
         <div class="facts">
           <div class="fact"><span>Channels</span><span>${DATA.channels.map((c) => esc(c.name)).join(', ')}</span></div>
-          <div class="fact"><span>Strategy videos</span><span class="mono">${tracked} / ${v.length}</span></div>
-          <div class="fact"><span>New video check</span><span>Every 3 hours</span></div>
+          <div class="fact"><span>New video check</span><span>8:00 and 18:00 IST</span></div>
           <div class="fact" style="display:block"><div style="display:flex;justify-content:space-between">
             <span class="muted">Gemini today (free)</span><span class="mono">${hours(used)} / ${hours(DATA.budget)}</span></div>
             <div class="bar"><i style="width:${Math.min(100, used / DATA.budget * 100).toFixed(1)}%"></i></div></div>
@@ -353,10 +379,17 @@ function pageHome() {
         <div class="panel-head"><h2>Roadmap</h2></div>
         <div class="roadmap">${STAGES.map((t, i) => `
           <div class="step${i === 0 ? ' now' : ''}"><span class="step-n">${i + 1}</span><span>${esc(t)}</span>
-          ${i === 0 ? '<span class="tag tag-accent">Current</span>' : ''}</div>`).join('')}</div>
+          ${i === 0 ? '<span class="tag tag-accent">Current</span>' : i === 3 ? '<span class="tag">Next</span>' : ''}</div>`).join('')}</div>
       </div>
     </div>
   </div>`;
+}
+
+// Next tracker run (8:00 or 18:00 IST), worked out in India time whatever the device clock zone.
+function nextCheck() {
+  const ist = new Date(Date.now() + 330 * 60000);
+  const h = ist.getUTCHours() + ist.getUTCMinutes() / 60;
+  return h < 8 ? '8:00' : h < 18 ? '18:00' : '8:00 tmrw';
 }
 
 // Library filters are remembered per device.
@@ -377,12 +410,14 @@ function pageLibrary() {
   const styles = ['options', 'intraday', 'swing', 'crypto'];
   return `
   <div class="page-head"><div><div class="kicker">Strategy Library</div><h1>Strategies</h1>
-    <p>Every rule specifies whether it was <b>explicitly stated</b> by the expert or <b>inferred</b> by AI. Elements missing from the video are clearly tagged.</p></div></div>
+    <p>Every rule shows whether it is <b>stated in the source</b> (with the page or video time) or <b>inferred</b> by AI. Anything the source leaves out is tagged.</p></div></div>
   <div class="toolbar">
     <label class="search">${icon('search')}<input class="input" id="lib-q" type="search" placeholder="Search: rectangle, supertrend, bank nifty…" value="${esc(f.q)}"></label>
     <details class="filters" ${filtersOpen() ? 'open' : ''}><summary>Filters${activeFilters()}</summary><div class="toolbar">
-    ${chipRow('Source', 'src', [['all', 'All', ALL.length], ['expert', 'Experts', DATA.strategies.length], ['mine', 'Mine', DATA.mine.length]], f)}
-    ${chipRow('Channel', 'ch', [['all', 'All'], ...DATA.channels.map((c) => [c.id, c.name])], f)}
+    ${chipRow('Source', 'src', [['all', 'All', ALL.length],
+      ...(DATA.docs || []).map((d) => [d.docId, d.short || d.title, d.count]),
+      ['expert', 'New videos', DATA.strategies.filter((s) => s.source === 'expert').length], ['mine', 'Mine', DATA.mine.length]], f)}
+    ${f.src === 'expert' ? chipRow('Channel', 'ch', [['all', 'All'], ...DATA.channels.map((c) => [c.id, c.name])], f) : ''}
     ${chipRow('Style', 'style', [['all', 'All'], ...styles.map((s) => [s, STYLE_NAMES[s]])], f)}
     ${tfs.length ? chipRow('Timeframe', 'tf', [['all', 'All'], ...tfs.sort().map((t) => [t, t])], f) : ''}
     ${chipRow('Rules', 'comp', [['all', 'All'], ['full', 'Complete'], ['partial', 'Incomplete'], ['idea', 'Concept only']], f)}
@@ -402,7 +437,8 @@ let filtersOpenState = null;
 const filtersOpen = () => filtersOpenState ?? window.innerWidth > 900;
 function activeFilters() {
   const f = ui.lib;
-  const n = ['src', 'ch', 'style', 'tf', 'comp'].filter((k) => f[k] !== 'all').length + (f.test ? 1 : 0);
+  const n = ['src', 'style', 'tf', 'comp'].filter((k) => f[k] !== 'all').length +
+    (f.src === 'expert' && f.ch !== 'all' ? 1 : 0) + (f.test ? 1 : 0);
   return n ? ` <span class="tag tag-accent">${n}</span>` : '';
 }
 
@@ -410,23 +446,24 @@ function libResults() {
   const f = ui.lib;
   const words = f.q.toLowerCase().split(/\s+/).filter(Boolean);
   const list = ALL.filter((s) => {
-    if (f.src !== 'all' && s.source !== f.src) return false;
-    if (f.ch !== 'all' && s.channel !== f.ch) return false;
+    if (f.src !== 'all' && s.source !== f.src && s.docId !== f.src) return false;
+    if (f.src === 'expert' && f.ch !== 'all' && s.channel !== f.ch) return false;
     if (f.style !== 'all' && !(s.styles || []).includes(f.style)) return false;
     if (f.tf !== 'all' && !(s.timeframes || []).includes(f.tf)) return false;
     if (f.comp !== 'all' && s.completeness !== f.comp) return false;
     if (f.test && !s.testable) return false;
     if (!words.length) return true;
-    const hay = [s.name, s.summary, s.videoTitle, CH[s.channel]?.name, ...(s.indicators || []), ...(s.patterns || []),
+    const hay = [s.name, s.summary, s.videoTitle, srcName(s), ...(s.indicators || []), ...(s.patterns || []),
       ...(s.instruments || []), ...(s.timeframes || []), ...rulesOf(s).map((r) => r.text)].join(' ').toLowerCase();
     return words.every((w) => hay.includes(w));
   }).sort((a, b) => f.sort === 'views'
     ? (b.views || 0) - (a.views || 0)
-    : (b.extractedAt || b.updatedAt || '').localeCompare(a.extractedAt || a.updatedAt || ''));
+    : (b.extractedAt || b.updatedAt || '').localeCompare(a.extractedAt || a.updatedAt || '') ||
+      (a.docId || '').localeCompare(b.docId || '') || (a.n || 0) - (b.n || 0));
 
   $('#lib-results').innerHTML = `<div class="result-line">${list.length} ${list.length === 1 ? 'strategy' : 'strategies'}</div>` +
     (list.length ? `<div class="cards">${list.map(card).join('')}</div>`
-      : `<div class="panel empty"><strong>No results found</strong>${ALL.length ? 'Try clearing some filters.' : 'The library is currently empty. Strategies will appear following Claude’s next run.'}</div>`);
+      : `<div class="panel empty"><strong>No results found</strong>${ALL.length ? 'Try clearing some filters.' : 'The library is empty.'}</div>`);
 }
 
 function card(s) {
@@ -436,7 +473,7 @@ function card(s) {
     <div class="card-top">${srcLabel(s)}<span>${s.kind === 'concept' ? 'Concept' : 'Strategy'}</span></div>
     <h3>${esc(s.name)}</h3>
     <p>${esc(s.summary)}</p>
-    ${tags.length ? `<div class="tags">${tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}${s.testable ? '<span class="tag tag-accent">Backtest-ready</span>' : ''}</div>` : ''}
+    ${tags.length ? `<div class="tags">${tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}${s.testable ? '<span class="tag tag-accent">Backtest-ready</span>' : ''}${untested(s) ? '<span class="tag tag-down">Untested</span>' : ''}</div>` : ''}
     <div class="card-foot">${meter(s.completeness)}<span>${c.stated} stated · ${c.inferred} inferred · ${c.missing} missing</span></div>
   </a>`;
 }
@@ -445,28 +482,33 @@ function pageStrategy(sid) {
   const s = ALL.find((x) => x.sid === sid);
   if (!s) return `<a class="back" href="#/library">${icon('back')}Library</a><div class="panel empty"><strong>Strategy not found</strong>It may have been modified or removed. Please reopen from the library.</div>`;
   const mine = s.source === 'mine';
+  const doc = s.source === 'doc' ? DOC[s.docId] || { title: s.docId } : null;
+  const statedLabel = mine ? 'Defined by you' : doc ? 'Stated in document' : 'Stated in video';
   const dir = { long: '<span class="tag tag-up">Long / Buy</span>', short: '<span class="tag tag-down">Short / Sell</span>',
     both: '<span class="tag tag-up">Buy</span> <span class="tag tag-down">Sell</span>' }[s.direction] || '<span class="faint">Unspecified</span>';
   const list = (a) => (a && a.length ? esc(a.join(', ')) : '<span class="faint">Unspecified</span>');
 
   const rule = (r) => r.basis === 'stated'
     ? `<li class="rule"><div class="rule-text">${esc(r.text)}</div><div class="rule-meta">
-        ${Number.isFinite(r.t) && !mine ? `<a class="ts" href="${yt(s.videoId, r.t)}" target="_blank" rel="noopener">▶ ${clock(r.t)}</a>` : ''}
-        <span>${mine ? 'Defined by you' : 'Stated in video'}</span></div></li>`
+        ${Number.isFinite(r.t) && s.source === 'expert' ? `<a class="ts" href="${yt(s.videoId, r.t)}" target="_blank" rel="noopener">▶ ${clock(r.t)}</a>` : ''}
+        ${Number.isFinite(r.p) && doc ? `<span class="ts">p. ${r.p}</span>` : ''}
+        <span>${statedLabel}</span></div>${r.quote ? `<div class="rule-why">“${esc(r.quote)}”</div>` : ''}</li>`
     : `<li class="rule inferred"><div class="rule-text">${esc(r.text)}</div>
         <div class="rule-meta"><span>Inferred by AI</span></div>${r.why ? `<div class="rule-why">${esc(r.why)}</div>` : ''}</li>`;
 
   return `
   <a class="back" href="#/library">${icon('back')}Library</a>
   <div class="detail-head">
-    <div class="kicker">${mine ? 'My Strategy' : `Expert · ${esc(CH[s.channel]?.name)}`}${s.kind === 'concept' ? ' · Concept' : ''}</div>
+    <div class="kicker">${mine ? 'My Strategy' : doc ? `${doc.kind === 'manual' ? 'Manual' : 'Book'} · ${esc(doc.publisher || doc.title)}` : `Expert · ${esc(CH[s.channel]?.name)}`}${s.kind === 'concept' ? ' · Concept' : ''}</div>
     <h1>${esc(s.name)}</h1>
     <div class="src">${mine
       ? `<span>${s.status === 'final' ? 'Final' : 'Draft'}</span><span>Updated ${esc(date(s.updatedAt))}</span>`
+      : doc ? `<span>${esc(doc.title)}</span><span>PDF, ${doc.pages} pages</span><span>Shared ${esc(date(doc.addedAt))}</span>`
       : `<a href="${yt(s.videoId)}" target="_blank" rel="noopener" style="display:inline-flex;gap:6px;align-items:center">${esc(s.videoTitle)} ${icon('ext')}</a>
          ${s.published ? `<span>${esc(date(s.published))}</span>` : ''}${s.views ? `<span>${views(s.views)} views</span>` : ''}`}</div>
     <p class="summary">${esc(s.summary)}</p>
-    <div class="legend"><span><i class="sw sw-stated"></i>${mine ? 'Defined by you' : 'Stated in video'}</span>
+    ${untested(s) ? `<p class="summary" style="color:var(--down)">${esc(doc.trust)}</p>` : ''}
+    <div class="legend"><span><i class="sw sw-stated"></i>${statedLabel}</span>
       <span><i class="sw sw-inferred"></i>Inferred by AI</span><span><i class="sw sw-missing"></i>Unspecified</span></div>
   </div>
 
@@ -477,9 +519,9 @@ function pageStrategy(sid) {
         return `<div class="rule-sec"><h2>${label}${sub ? `<div class="faint" style="font-size:11.5px;margin-top:2px">${sub}</div>` : ''}</h2>
           ${items.length ? `<ul class="rule-list">${items.map(rule).join('')}</ul>` : '<div class="rule-none">Unspecified</div>'}</div>`;
       }).join('')}</div>
-      ${(s.missing || []).length ? `<div class="panel"><div class="panel-head"><h2>${mine ? 'Pending decision' : 'Not stated in video'}</h2></div>
+      ${(s.missing || []).length ? `<div class="panel"><div class="panel-head"><h2>${mine ? 'Pending decision' : doc ? 'Not defined in document' : 'Not stated in video'}</h2></div>
         <div class="panel-body"><ul class="missing-list">${s.missing.map((m) => `<li>${esc(m)}</li>`).join('')}</ul></div></div>` : ''}
-      ${(s.cautions || []).length ? `<div class="panel"><div class="panel-head"><h2>${mine ? 'Points to note' : 'Expert warnings'}</h2></div>
+      ${(s.cautions || []).length ? `<div class="panel"><div class="panel-head"><h2>${mine ? 'Points to note' : doc ? 'Warnings' : 'Expert warnings'}</h2></div>
         <div class="panel-body"><ul class="plain-list">${s.cautions.map((m) => `<li>${esc(m)}</li>`).join('')}</ul></div></div>` : ''}
     </div>
 
@@ -496,7 +538,9 @@ function pageStrategy(sid) {
           ${s.testable ? '<span class="tag tag-accent">Ready</span>' : '<span class="tag">Not ready</span>'}</div>
           ${s.testableWhy ? `<div class="faint" style="font-size:12.5px;margin-top:6px">${esc(s.testableWhy)}</div>` : ''}</div>
       </div>
-      ${mine ? '' : `<div class="panel"><a href="#/v/${esc(s.videoId)}" style="display:block;padding:12px">
+      ${doc ? `<div class="panel"><div class="panel-head"><h2>About this source</h2></div>
+        <div class="panel-body"><p style="margin:0 0 8px">${esc(doc.about || '')}</p><p class="muted" style="margin:0">${esc(doc.trust || '')}</p></div></div>` : ''}
+      ${mine || doc ? '' : `<div class="panel"><a href="#/v/${esc(s.videoId)}" style="display:block;padding:12px">
         <img class="thumb" style="width:100%" src="${thumb(s.videoId)}" alt="" loading="lazy">
         <div style="margin-top:10px;display:flex;justify-content:space-between;font-size:13px"><span>View transcript</span><span class="muted">${esc(CH[s.channel]?.name)}</span></div></a></div>`}
     </div>
@@ -510,15 +554,7 @@ function videoList() {
     (f.ch === 'all' || v.c === f.ch) &&
     (f.st === 'all' || v.st === f.st || (f.st === 'queued' && v.st === 'failed')) &&
     words.every((w) => v.ti.toLowerCase().includes(w)));
-  if (f.st === 'queued') {
-    // Same order transcribe.mjs works in: new uploads, then old strategy, then old concept, most viewed first.
-    const rank = (v) => (v.o === 'new' ? 0 : v.l === 'strategy' ? 1 : 2);
-    list.sort((a, b) => rank(a) - rank(b) || (a.o === 'new'
-      ? (b.p || '').localeCompare(a.p || '') : (b.vw || 0) - (a.vw || 0)));
-  } else {
-    list.sort((a, b) => (b.p || '').localeCompare(a.p || '') || (b.vw || 0) - (a.vw || 0));
-  }
-  return list;
+  return list.sort((a, b) => (b.p || '').localeCompare(a.p || '') || (b.vw || 0) - (a.vw || 0));
 }
 
 function pageVideos() {
@@ -527,7 +563,7 @@ function pageVideos() {
   const n = (st) => inCh.filter((v) => v.st === st || (st === 'queued' && v.st === 'failed')).length;
   return `
   <div class="page-head"><div><div class="kicker">YouTube Research</div><h1>Videos</h1>
-    <p>Standard videos across all three channels (excluding Shorts and livestreams). Processing queue order: new uploads, then past strategy videos, then concept videos, sorted by highest views.</p></div></div>
+    <p>New uploads from the three channels since 23 Oct 2026 (no Shorts or livestreams), checked twice a day at 8:00 and 18:00 IST. Old videos are not read.</p></div></div>
   <div class="toolbar">
     <label class="search">${icon('search')}<input class="input" id="vid-q" type="search" placeholder="Search video titles…" value="${esc(f.q)}"></label>
     ${chipRow('Channel', 'ch', [['all', 'All', DATA.videos.length], ...DATA.channels.map((c) => [c.id, c.name, DATA.videos.filter((v) => v.c === c.id).length])], f)}
@@ -573,7 +609,7 @@ function pageVideo(id) {
   ${strategies.length ? `<div class="cards" style="margin-bottom:16px">${strategies.map(card).join('')}</div>` : ''}
   ${v.tr ? `<div class="panel"><div class="panel-head"><h2>Transcript</h2><span class="faint" style="font-size:12px">Transcribed by Gemini · Click timestamp to view on YouTube</span></div>
     <div class="transcript" id="transcript"><p class="faint" style="display:block">Loading…</p></div></div>`
-    : `<div class="panel empty"><strong>Transcript not generated yet</strong>${v.st === 'queued' ? 'Queued. Free Gemini processes ~7 hours of video daily.' : ''}</div>`}`;
+    : `<div class="panel empty"><strong>Transcript not generated yet</strong>${v.st === 'queued' ? 'Queued for the next check (8:00 or 18:00 IST).' : ''}</div>`}`;
 }
 
 async function loadTranscript(id) {
@@ -703,6 +739,8 @@ function start() {
 window.addEventListener('hashchange', render);
 
 document.addEventListener('click', (e) => {
+  const src = e.target.closest('a[data-src]');
+  if (src) { ui.lib.src = src.dataset.src; LS.set('lt.lib', JSON.stringify(ui.lib)); }
   const a = e.target.closest('[data-action]');
   if (a) {
     const act = a.dataset.action;
