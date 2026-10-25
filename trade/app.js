@@ -759,7 +759,7 @@ function renderLive() {
     return;
   }
   const open = marketOpen(d.status);
-  line.innerHTML = !d.status.keys ? 'Waiting for the Angel One API keys. The live watch is deployed and checks every minute once they are added.'
+  line.innerHTML = !d.status.token ? 'Waiting for the Upstox token. The live watch is deployed and checks every minute once it is added.'
     : open ? `Market open · updated ${d.status.lastRun ? istTime(d.status.lastRun) : '–'} IST · refreshes every 30 s`
     : `Market closed · showing ${esc(d.day)}${d.status.closedDay === IST().day ? ' (exchange holiday today)' : ''}`;
   box.innerHTML = `
