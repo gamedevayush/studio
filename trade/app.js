@@ -43,6 +43,7 @@ const MAIN = [
   { id: 'library', href: '#/library', label: 'Strategy Library', short: 'Library', icon: 'library' },
   { id: 'videos', href: '#/videos', label: 'YouTube Research', short: 'Videos', icon: 'videos', dock: false },
   { id: 'mine', href: '#/mine', label: 'My Strategies', short: 'Mine', icon: 'mine' },
+  { id: 'race', href: '#/race', label: 'Paper Race', short: 'Race', icon: 'journal', dock: false },
   { id: 'check', href: '#/check', label: 'Trade Check', short: 'Check', icon: 'backtest', dock: false },
   { id: 'scan', href: '#/scan', label: 'Stock Scanner', short: 'Scanner', icon: 'search', dock: false },
   { id: 'news', href: '#/news', label: 'Market News', short: 'News', icon: 'globe', dock: false },
@@ -326,6 +327,9 @@ function pageHome() {
   return `
   <div class="page-head"><div><div class="kicker">Overview</div><h1>Trading desk</h1>
     <p>Strategies from the books and manuals you shared, new expert videos and your own rules. Live market alerts are next.</p></div></div>
+
+  <div class="panel" id="home-race" style="margin-bottom:16px"><div class="panel-head"><h2>Paper Race · standings</h2><a href="#/race">Open the race</a></div>
+    <div class="empty">Loading…</div></div>
 
   <div class="stats">
     <div class="stat"><div class="stat-label">Strategies</div><div class="stat-value">${ALL.length}</div>
@@ -1371,6 +1375,227 @@ function renderNews() {
   box.onclick = (e) => { const f = e.target.closest('[data-nf]'); if (f) { newsFilter = f.dataset.nf; renderNews(); } };
 }
 
+// ---------- Paper Race: virtual ₹1,000 each, live prices, every action posted to the Telegram channel ----------
+let raceData = null, raceTimer = null, raceSel = null, raceSide = 'long', raceQuote = null, raceTab = 'positions';
+const rupee = (n) => `₹${num(n)}`;
+const signed = (n, f = rupee) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${f(Math.abs(n))}`;
+const pnlColor = (n) => (n > 0 ? 'var(--up)' : n < 0 ? 'var(--down)' : 'var(--muted)');
+const racePin = (id) => { try { return sessionStorage.getItem(`race-pin-${id}`) || ''; } catch { return ''; } };
+const keepPin = (id, pin) => { try { sessionStorage.setItem(`race-pin-${id}`, pin); } catch { /* private mode */ } };
+
+async function apiPost(path, body) {
+  const res = await fetch(`${DATA.live.url}${path}`, { method: 'POST', headers: { 'x-live-key': DATA.live.key, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const d = await res.json().catch(() => ({ error: `the live watch answered ${res.status}` }));
+  if (d.error) throw new Error(d.error);
+  return d;
+}
+
+function standingsRows(players, link) {
+  return players.map((p, i) => `
+    <${link ? 'a' : 'button'} class="row" ${link ? 'href="#/race"' : `data-pl="${p.id}"`} style="grid-template-columns:28px 1fr auto;width:100%;text-align:left;background:${!link && p.id === raceSel ? 'var(--panel-2)' : 'none'};border:0;border-top:1px solid var(--line);color:inherit;font:inherit;cursor:pointer">
+      <span class="mono" style="color:${i === 0 ? 'var(--accent)' : 'var(--faint)'}">#${i + 1}</span>
+      <div><div class="row-title">${esc(p.name)}</div><div class="row-sub">${p.positions.length} open · ${p.tradeCount} trades · cash ${rupee(p.cash)}</div></div>
+      <div style="text-align:right;font-family:var(--mono)"><div>${rupee(p.equity)}</div><div style="font-size:12px;color:${pnlColor(p.pnl)}">${signed(p.pnl)} (${p.returnPct > 0 ? '+' : ''}${num(p.returnPct)} %)</div></div>
+    </${link ? 'a' : 'button'}>`).join('');
+}
+
+async function loadHomeRace() {
+  const box = $('#home-race');
+  if (!box) return;
+  try {
+    const d = await api('/paper');
+    if (!$('#home-race')) return;
+    box.innerHTML = `<div class="panel-head"><h2>Paper Race · standings</h2><a href="#/race">Open the race</a></div>
+      ${d.players.length ? `<div class="list-rows">${standingsRows(d.players, true)}</div>
+        <div class="panel-body faint" style="font-size:12px;padding-top:10px">Virtual money only: ₹${num(d.startCash, 0)} each at live prices. ${d.season.startedAt ? `Running since ${new Date(d.season.startedAt + 330 * 60000).toUTCString().slice(5, 16)}.` : ''}</div>`
+        : '<div class="empty"><strong>No one in the race yet</strong><a href="#/race">Add people</a> and each gets ₹1,000 of virtual money.</div>'}`;
+  } catch (ex) {
+    box.innerHTML = `<div class="panel-head"><h2>Paper Race</h2><a href="#/race">Open</a></div><div class="empty">${esc(ex.message)}</div>`;
+  }
+}
+
+function pageRace() {
+  return `
+  <div class="page-head"><div><div class="kicker">Paper Race · virtual money</div><h1>Trade like it's real, learn for free</h1>
+    <p>Each person gets ₹1,000 of virtual money and trades Nifty 200 stocks and ETH, SOL, XRP at live market prices: long or short,
+    never more than their cash. Every order and exit is posted to the Telegram channel. No real money, no real orders.</p></div>
+    <button class="btn" id="race-add-btn">Add person</button></div>
+  <div class="panel" style="margin-bottom:16px;padding:10px 16px;border-color:var(--accent);color:var(--accent);font-size:13px">VIRTUAL MONEY · practice only · prices are live (stocks 09:15-15:30 IST on trading days, crypto 24 hours, crypto shown in ₹ at the live dollar rate)</div>
+  <form class="panel" id="race-add" hidden style="margin-bottom:16px"><div class="panel-body" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;align-items:end">
+    <label class="field"><span>Name</span><input class="input" id="ra-name" maxlength="24" required></label>
+    <label class="field"><span>4-digit PIN (to trade)</span><input class="input mono" id="ra-pin" inputmode="numeric" pattern="\\d{4}" maxlength="4" required></label>
+    <button class="btn btn-primary">Add with ₹1,000</button></div><div class="panel-body form-msg" id="ra-msg" style="padding-top:0"></div></form>
+  <div class="grid-2" style="align-items:start">
+    <div id="race-account"></div>
+    <div class="stack" style="display:grid;gap:16px">
+      <div class="panel"><div class="panel-head"><h2>Standings</h2><span class="faint mono" id="race-upd"></span></div><div id="race-board"><div class="empty">Loading…</div></div></div>
+      <details class="panel"><summary class="panel-head" style="cursor:pointer"><h2>Reset or leave</h2></summary><div class="panel-body" style="display:grid;gap:10px;font-size:13px">
+        <div>Reset starts everyone again at ₹1,000 and clears all trades. Type RESET:</div>
+        <div style="display:flex;gap:8px"><input class="input mono" id="race-reset-txt" placeholder="RESET" style="max-width:140px"><button class="btn" id="race-reset">Reset the race</button></div>
+        <div class="faint">To leave the race, open your account and use "Leave the race" (needs your PIN).</div>
+        <div class="form-msg" id="race-reset-msg"></div></div></details>
+    </div>
+  </div>`;
+}
+
+function startRace() {
+  $('#race-add-btn').addEventListener('click', () => { $('#race-add').hidden = !$('#race-add').hidden; $('#ra-name').focus(); });
+  $('#race-add').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      const r = await apiPost('/paper/player', { name: $('#ra-name').value, pin: $('#ra-pin').value });
+      keepPin(r.id, $('#ra-pin').value);
+      raceSel = r.id;
+      $('#race-add').reset(); $('#race-add').hidden = true;
+      await loadRace();
+    } catch (ex) { $('#ra-msg').textContent = ex.message; }
+  });
+  $('#race-reset').addEventListener('click', async () => {
+    try { await apiPost('/paper/reset', { confirm: $('#race-reset-txt').value.trim() }); $('#race-reset-msg').textContent = 'Reset. Everyone has ₹1,000 again.'; await loadRace(); }
+    catch (ex) { $('#race-reset-msg').textContent = ex.message; }
+  });
+  $('#race-board').addEventListener('click', (e) => { const b = e.target.closest('[data-pl]'); if (b) { raceSel = Number(b.dataset.pl); raceQuote = null; renderRace(); } });
+  loadRace();
+  clearInterval(raceTimer);
+  raceTimer = setInterval(() => { if (document.visibilityState === 'visible' && location.hash.startsWith('#/race')) loadRace(true); }, 30000);
+}
+
+async function loadRace(quiet) {
+  try { raceData = await api('/paper'); } catch (ex) { if (!quiet) $('#race-board').innerHTML = `<div class="empty">${esc(ex.message)}</div>`; return; }
+  if (!raceData.players.some((p) => p.id === raceSel)) raceSel = raceData.players[0]?.id ?? null;
+  renderRace(quiet);
+}
+
+function renderRace(quiet) {
+  if (!$('#race-board') || !raceData) return;
+  $('#race-upd').textContent = `${istTime(raceData.now)} IST`;
+  $('#race-board').innerHTML = raceData.players.length ? `<div class="list-rows">${standingsRows(raceData.players, false)}</div>`
+    : '<div class="empty"><strong>No one yet</strong>Use "Add person" to start the race.</div>';
+  const p = raceData.players.find((x) => x.id === raceSel);
+  const box = $('#race-account');
+  if (!p) { box.innerHTML = ''; return; }
+  // Keep what he is typing in the order ticket when the 30 s refresh redraws the page.
+  const keep = quiet && $('#ro-sym') ? { sym: $('#ro-sym').value, amt: $('#ro-amt').value, pin: $('#ro-pin').value, focus: document.activeElement?.id } : null;
+  const invested = p.positions.reduce((a, x) => a + x.cost, 0), open = p.positions.reduce((a, x) => a + x.pnl, 0);
+  box.innerHTML = `
+    <div class="panel" style="margin-bottom:16px"><div class="panel-head"><h2>${esc(p.name)} · account</h2><span class="tag tag-accent">virtual</span></div>
+      <div class="stats" style="margin:0;border:0;border-radius:0">
+        <div class="stat"><div class="stat-label">Account value</div><div class="stat-value">${rupee(p.equity)}</div><div class="stat-sub" style="color:${pnlColor(p.pnl)}">${signed(p.pnl)} overall</div></div>
+        <div class="stat"><div class="stat-label">Available cash</div><div class="stat-value">${rupee(p.cash)}</div><div class="stat-sub">to place orders</div></div>
+        <div class="stat"><div class="stat-label">Invested</div><div class="stat-value">${rupee(invested)}</div><div class="stat-sub">${p.positions.length} open</div></div>
+        <div class="stat"><div class="stat-label">Open P&amp;L</div><div class="stat-value" style="color:${pnlColor(open)}">${signed(open)}</div><div class="stat-sub">live prices</div></div>
+      </div></div>
+    <form class="panel" id="race-order" style="margin-bottom:16px"><div class="panel-head"><h2>Place order</h2><span class="faint" style="font-size:12px">market order · fills at the live price</span></div>
+      <div class="panel-body" style="display:grid;gap:12px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <button type="button" class="btn" data-side="long" style="${raceSide === 'long' ? 'background:var(--up);border-color:var(--up);color:#06110f;font-weight:600' : ''}">BUY</button>
+          <button type="button" class="btn" data-side="short" style="${raceSide === 'short' ? 'background:var(--down);border-color:var(--down);color:#1a0505;font-weight:600' : ''}">SELL (short)</button></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px">
+          <label class="field"><span>Stock or coin</span><input class="input mono" id="ro-sym" list="ro-syms" placeholder="RELIANCE / ETH" autocapitalize="characters" required>
+            <datalist id="ro-syms">${[...COIN_SYMS, ...UNIVERSE.map((u) => u.sym)].map((s) => `<option value="${esc(s)}">${esc(symName(s))}</option>`).join('')}</datalist></label>
+          <label class="field"><span>Amount (₹)</span><input class="input mono" id="ro-amt" inputmode="decimal" required></label>
+          <label class="field"><span>PIN</span><input class="input mono" id="ro-pin" inputmode="numeric" maxlength="4" value="${esc(racePin(p.id))}" required></label>
+        </div>
+        <div class="chips">${[25, 50, 100].map((f) => `<button type="button" class="chip" data-frac="${f}">${f} % of cash</button>`).join('')}</div>
+        <div id="ro-quote" class="mono" style="font-size:13px;min-height:20px"></div>
+        <div class="form-row" style="margin:0"><span class="form-msg" id="ro-msg"></span>
+          <button class="btn btn-primary" id="ro-go">${raceSide === 'long' ? 'Buy' : 'Sell short'}</button></div>
+      </div></form>
+    <div class="panel"><div class="panel-head"><div class="chips"><button class="chip" data-tab="positions" aria-pressed="${raceTab === 'positions'}">Positions <span class="n">${p.positions.length}</span></button>
+        <button class="chip" data-tab="orders" aria-pressed="${raceTab === 'orders'}">Orders <span class="n">${p.trades.length}</span></button></div></div>
+      ${raceTab === 'positions' ? (p.positions.length ? `<div class="list-rows">${p.positions.map((x) => `
+        <div class="row" style="grid-template-columns:1fr auto auto;cursor:default">
+          <div><div class="row-title"><span class="tag ${x.side === 'long' ? 'tag-up' : 'tag-down'}">${x.side === 'long' ? 'LONG' : 'SHORT'}</span> ${esc(x.sym)} <span class="faint" style="font-weight:400">${esc(x.name)}</span></div>
+            <div class="row-sub mono">qty ${num(x.qty, x.qty < 1 ? 6 : 2)} · avg ${num(x.entry)} · LTP ${num(x.price)}${x.priced ? '' : ' (no price now)'} · ${istTime(x.opened)}</div></div>
+          <div style="text-align:right;font-family:var(--mono);color:${pnlColor(x.pnl)}">${signed(x.pnl)}<div style="font-size:12px">${x.pnlPct > 0 ? '+' : ''}${num(x.pnlPct)} %</div></div>
+          <div style="display:flex;gap:6px"><button class="chip" data-chart="${esc(x.sym)}">Chart</button><button class="chip" data-exit="${x.id}">Exit</button></div></div>`).join('')}</div>`
+        : '<div class="empty">No open positions.</div>')
+      : (p.trades.length ? `<div class="list-rows">${p.trades.map((t) => {
+        const buy = (t.action === 'open') === (t.side === 'long');
+        return `<div class="row" style="grid-template-columns:70px 1fr auto;cursor:default">
+          <span class="mono faint" style="font-size:12px">${istDay(t.at) === istDayNow() ? istTime(t.at) : new Date(t.at + 330 * 60000).toUTCString().slice(5, 11)}</span>
+          <div><div class="row-title"><span style="color:var(--${buy ? 'up' : 'down'})">${buy ? 'BUY' : 'SELL'}</span> ${esc(t.sym)} <span class="faint" style="font-weight:400">${t.action === 'open' ? (t.side === 'long' ? 'open long' : 'open short') : (t.side === 'long' ? 'exit long' : 'cover short')}</span></div>
+            <div class="row-sub mono">qty ${num(t.qty, t.qty < 1 ? 6 : 2)} @ ${num(t.price)} · executed</div></div>
+          <div class="mono" style="color:${t.pnl === null ? 'var(--faint)' : pnlColor(t.pnl)}">${t.pnl === null ? '' : signed(t.pnl)}</div></div>`;
+      }).join('')}</div>` : '<div class="empty">No orders yet.</div>')}
+      <div class="panel-body" style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:12px"><span class="faint">Started with ₹${num(raceData.startCash, 0)} · virtual</span><button class="chip" id="race-leave">Leave the race</button></div></div>`;
+  if (keep) {
+    $('#ro-sym').value = keep.sym; $('#ro-amt').value = keep.amt; $('#ro-pin').value = keep.pin;
+    if (keep.focus && $(`#${keep.focus}`)) $(`#${keep.focus}`).focus();
+  }
+  if (raceQuote) showQuote();
+  wireRaceAccount(p);
+}
+
+function showQuote() {
+  const q = raceQuote, box = $('#ro-quote');
+  if (!box || !q) return;
+  if (q.error) { box.innerHTML = `<span style="color:var(--down)">${esc(q.error)}</span>`; return; }
+  const amt = Number($('#ro-amt')?.value) || 0;
+  box.innerHTML = `${esc(q.sym)} · LTP ₹${num(q.price, q.price < 50 ? 4 : 2)}${q.usd ? ` ($${cnum(q.usd)} × ${num(q.fx)})` : ''}${amt ? ` · qty ≈ ${num(amt / q.price, amt / q.price < 1 ? 6 : 3)}` : ''}${q.closed ? ` · <span style="color:var(--down)">${esc(q.closed)}</span>` : ''}`;
+}
+
+function wireRaceAccount(p) {
+  const box = $('#race-account');
+  let qTimer = null;
+  const fetchQuote = () => {
+    const sym = $('#ro-sym').value.trim().toUpperCase();
+    if (!sym) { raceQuote = null; $('#ro-quote').textContent = ''; return; }
+    clearTimeout(qTimer);
+    qTimer = setTimeout(async () => {
+      try { raceQuote = await api(`/paper/quote?sym=${encodeURIComponent(sym)}`); } catch (ex) { raceQuote = { error: ex.message }; }
+      showQuote();
+    }, 350);
+  };
+  $('#ro-sym').addEventListener('change', fetchQuote);
+  $('#ro-sym').addEventListener('input', () => { if (symKind($('#ro-sym').value.trim().toUpperCase())) fetchQuote(); });
+  $('#ro-amt').addEventListener('input', showQuote);
+  box.onclick = async (e) => {
+    const side = e.target.closest('[data-side]');
+    if (side) { raceSide = side.dataset.side; return renderRace(true); }
+    const frac = e.target.closest('[data-frac]');
+    if (frac) { $('#ro-amt').value = Math.floor((p.cash * Number(frac.dataset.frac)) / 100 * 100) / 100; return showQuote(); }
+    const tab = e.target.closest('[data-tab]');
+    if (tab) { raceTab = tab.dataset.tab; return renderRace(true); }
+    const ch = e.target.closest('[data-chart]');
+    if (ch) return openChart(ch.dataset.chart);
+    const ex = e.target.closest('[data-exit]');
+    if (ex) {
+      const pin = $('#ro-pin').value || prompt('PIN');
+      if (!pin) return;
+      ex.disabled = true;
+      try {
+        const r = await apiPost('/paper/close', { player: p.id, pin, position: Number(ex.dataset.exit) });
+        keepPin(p.id, pin);
+        await loadRace(true);
+        $('#ro-msg').innerHTML = `<span style="color:${pnlColor(r.closed.pnl)}">Exit executed: ${esc(r.closed.sym)} @ ₹${num(r.closed.price)}, P&amp;L ${signed(r.closed.pnl)}</span>`;
+      } catch (er) { ex.disabled = false; $('#ro-msg').innerHTML = `<span style="color:var(--down)">${esc(er.message)}</span>`; }
+      return;
+    }
+    if (e.target.closest('#race-leave')) {
+      const pin = prompt(`${p.name}'s PIN to leave the race (all trades are deleted)`);
+      if (!pin) return;
+      try { await apiPost('/paper/remove', { player: p.id, pin }); raceSel = null; await loadRace(); } catch (er) { alert(er.message); }
+    }
+  };
+  $('#race-order').onsubmit = async (e) => {
+    e.preventDefault();
+    const go = $('#ro-go'), pin = $('#ro-pin').value;
+    go.disabled = true;
+    $('#ro-msg').textContent = 'Placing…';
+    try {
+      const r = await apiPost('/paper/open', { player: p.id, pin, sym: $('#ro-sym').value.trim().toUpperCase(), side: raceSide, amount: Number($('#ro-amt').value) });
+      keepPin(p.id, pin);
+      const f = r.filled;
+      $('#ro-amt').value = '';
+      await loadRace(true);
+      $('#ro-msg').innerHTML = `<span style="color:var(--up)">Order executed: ${f.side === 'long' ? 'BUY' : 'SELL'} ${esc(f.sym)} ${num(f.qty, f.qty < 1 ? 6 : 3)} @ ₹${num(f.price)}</span>`;
+    } catch (er) {
+      $('#ro-msg').innerHTML = `<span style="color:var(--down)">${esc(er.message)}</span>`;
+    } finally { if ($('#ro-go')) $('#ro-go').disabled = false; }
+  };
+}
+
 // ---------- router ----------
 let lastPage = '', hashParams = new URLSearchParams();
 function render() {
@@ -1384,8 +1609,11 @@ function render() {
 
   const view = $('#view');
   const pages = { '': pageHome, live: pageLive, library: pageLibrary, s: () => pageStrategy(arg), videos: pageVideos,
-    v: () => pageVideo(arg), mine: pageMine, later: () => pageLater(arg), check: pageCheck, scan: pageScan, news: pageNews };
+    v: () => pageVideo(arg), mine: pageMine, later: () => pageLater(arg), check: pageCheck, scan: pageScan, news: pageNews, race: pageRace };
+  if (page !== 'race') clearInterval(raceTimer);
   view.innerHTML = (pages[page] || pageHome)();
+  if (page === '') loadHomeRace();
+  if (page === 'race') startRace();
   if (page === 'library') libResults();
   if (page === 'live') startLive();
   if (page === 'check') startCheck();
@@ -1398,7 +1626,7 @@ function render() {
   const key = `${page}/${arg}`;
   if (key !== lastPage) window.scrollTo(0, 0);
   lastPage = key;
-  const title = { live: 'Live Market', library: 'Strategies', videos: 'Videos', mine: 'My Strategies', check: 'Trade Check', scan: 'Scanner', news: 'News' }[page];
+  const title = { live: 'Live Market', library: 'Strategies', videos: 'Videos', mine: 'My Strategies', check: 'Trade Check', scan: 'Scanner', news: 'News', race: 'Paper Race' }[page];
   document.title = title ? `${title} · Lets Trade` : 'Lets Trade';
 }
 
