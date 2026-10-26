@@ -1,5 +1,8 @@
 // Lets Trade front end. Everything arrives encrypted (data.enc, t/<id>.enc) and is opened
 // in the browser with a key derived from his password. No framework, no build step.
+// timemachine.js: Trade Check engine (Day Trader pack port). signals.js and universe.js are copied from live/src at build.
+import { timeMachine, verdict, historyRun, sizeTrade, riskCheck, DEFAULT_RULES, istDay } from './timemachine.js';
+import { UNIVERSE } from './universe.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
@@ -40,6 +43,9 @@ const MAIN = [
   { id: 'library', href: '#/library', label: 'Strategy Library', short: 'Library', icon: 'library' },
   { id: 'videos', href: '#/videos', label: 'YouTube Research', short: 'Videos', icon: 'videos', dock: false },
   { id: 'mine', href: '#/mine', label: 'My Strategies', short: 'Mine', icon: 'mine' },
+  { id: 'check', href: '#/check', label: 'Trade Check', short: 'Check', icon: 'backtest', dock: false },
+  { id: 'scan', href: '#/scan', label: 'Stock Scanner', short: 'Scanner', icon: 'search', dock: false },
+  { id: 'news', href: '#/news', label: 'Market News', short: 'News', icon: 'globe', dock: false },
 ];
 
 // What he has decided so far for the sections that come in later stages.
@@ -778,7 +784,9 @@ function alertRows(list, n) {
       <span class="mono faint">${istTime(a.at)}</span>
       <div><div class="row-title">${esc(a.name)} · <span style="color:var(--${/↑/.test(a.title) || a.dir === 'up' ? 'up' : /↓/.test(a.title) || a.dir === 'down' ? 'down' : 'text'})">${esc(a.title)}</span></div>
         <div class="row-sub">${esc(a.body)}</div>
-        ${a.plan ? `<div class="row-sub mono">${a.plan.dir === 'up' ? 'Buy' : 'Sell'}-stop ${n(a.plan.entry)} · stop ${n(a.plan.stop)} · 2R ${n(a.plan.target)}${a.ref ? ` · ${esc(a.ref)}` : ''}</div>` : ''}</div>
+        ${a.plan ? `<div class="row-sub mono">${a.plan.dir === 'up' ? 'Buy' : 'Sell'}-stop ${n(a.plan.entry)} · stop ${n(a.plan.stop)} · 2R ${n(a.plan.target)}${a.ref ? ` · ${esc(a.ref)}` : ''}
+          · <a href="${checkLink({ sym: a.sym, dir: a.plan.dir, entry: a.plan.entry, stop: a.plan.stop, target: a.plan.target, at: a.at,
+            rule: ['orb', 'ema-pullback'].includes(a.kind) ? `detect:${a.kind}` : 'none', from: `the ${istTime(a.at)} alert (its entry is a stop order; the replays assume it filled)` })}" style="color:var(--accent)">Check this trade</a></div>` : ''}</div>
     </div>`).join('')}</div>`
     : '<div class="empty">No alerts yet. They also arrive on Telegram.</div>';
 }
@@ -1049,10 +1057,326 @@ function drawChart(v, d) {
     + (v.coin || marketOpen(liveData?.status) ? ' · updates every 30 s' : ' · market closed');
 }
 
+// ---------- worker data (live watch) ----------
+async function api(path) {
+  if (!DATA.live?.url || !DATA.live?.key) throw new Error('the live watch is not connected to this site');
+  const res = await fetch(`${DATA.live.url}${path}`, { headers: { 'x-live-key': DATA.live.key }, cache: 'no-store' });
+  if (!res.ok) throw new Error(`the live watch answered ${res.status}`);
+  const d = await res.json();
+  if (d.error) throw new Error(d.error);
+  return d;
+}
+// Prices for the news MOVING line and Trade Check defaults when the Live page was not opened first.
+async function ensureLive() {
+  if (!liveData || liveData.error) { try { liveData = await api('/live'); } catch { /* pages work without it */ } }
+  return liveData;
+}
+const INDEX_SYMS = ['NIFTY', 'BANKNIFTY', 'SENSEX'], COIN_SYMS = ['ETH', 'SOL', 'XRP'];
+const symKind = (s) => (INDEX_SYMS.includes(s) ? 'index' : COIN_SYMS.includes(s) ? 'crypto' : UNIVERSE.some((u) => u.sym === s) ? 'stock' : null);
+const symName = (s) => ({ NIFTY: 'Nifty 50', BANKNIFTY: 'Bank Nifty', SENSEX: 'Sensex', ETH: 'Ethereum', SOL: 'Solana', XRP: 'XRP' }[s]
+  || UNIVERSE.find((u) => u.sym === s)?.name || s);
+const istDayNow = () => istDay(Date.now());
+
+// ---------- Trade Check: Time Machine + position size + risk check ----------
+const loadRules = () => { try { return { ...DEFAULT_RULES, ...JSON.parse(LS.get('lt-rules') || '{}') }; } catch { return { ...DEFAULT_RULES }; } };
+const loadJournal = () => { try { return JSON.parse(LS.get('lt-journal') || '[]'); } catch { return []; } };
+const RULE_LABEL = { none: 'None (a plan I typed)', orb15: '15 min opening range break (stop at the range middle)',
+  'detect:orb': 'Live alert: opening range break (setup 61)', 'detect:ema-pullback': 'Live alert: 9/20 EMA pullback (setups 1/10)' };
+
+// Link from an alert or a scanner hit to a prefilled Trade Check.
+const checkLink = (p) => `#/check?${new URLSearchParams(Object.entries(p).filter(([, v]) => v !== undefined && v !== null)).toString()}`;
+
+function pageCheck() {
+  const q = hashParams;
+  const rules = loadRules();
+  const sym = (q.get('sym') || 'NIFTY').toUpperCase();
+  const at = Number(q.get('at')) || Date.now();
+  const time = q.get('at') ? istTime(at) : null;
+  const field = (id, label, value, extra = '') => `<label class="field"><span>${label}</span><input class="input mono" id="${id}" value="${esc(value ?? '')}" ${extra}></label>`;
+  return `
+  <div class="page-head"><div><div class="kicker">Trade Check · before you risk a rupee</div><h1>Time Machine, size and risk</h1>
+    <p>Replays the rest of the session 10,000 times from the symbol's own recent 5 min bars, re-runs the same rule on every past session,
+    sizes the trade to your max loss and checks it against your limits. A simulation, not a prediction. Nothing here places an order.</p></div></div>
+  <form class="panel" id="check-form" style="margin-bottom:16px"><div class="panel-body" style="display:grid;gap:12px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
+      <label class="field"><span>Symbol (index, coin or Nifty 200 stock)</span><input class="input mono" id="c-sym" list="c-syms" value="${esc(sym)}" autocapitalize="characters" required>
+        <datalist id="c-syms">${[...INDEX_SYMS, ...COIN_SYMS, ...UNIVERSE.map((u) => u.sym)].map((s) => `<option value="${esc(s)}">${esc(symName(s))}</option>`).join('')}</datalist></label>
+      <label class="field"><span>Direction</span><select class="input" id="c-dir"><option value="up"${q.get('dir') !== 'down' ? ' selected' : ''}>Long (buy)</option><option value="down"${q.get('dir') === 'down' ? ' selected' : ''}>Short (sell)</option></select></label>
+      ${field('c-entry', 'Entry', q.get('entry'), 'inputmode="decimal" required')}
+      ${field('c-stop', 'Stop', q.get('stop'), 'inputmode="decimal" required')}
+      ${field('c-target', 'Target', q.get('target'), 'inputmode="decimal" required')}
+      ${field('c-time', 'Entry time (IST)', time, 'placeholder="now" pattern="[0-2]?[0-9]:[0-5][0-9]"')}
+      <label class="field"><span>Past record of</span><select class="input" id="c-rule">${Object.entries(RULE_LABEL).map(([k, v]) =>
+        `<option value="${k}"${(q.get('rule') || 'none') === k ? ' selected' : ''}>${esc(v)}</option>`).join('')}</select></label>
+    </div>
+    <div class="form-row"><span class="form-msg" id="c-msg">${q.get('from') ? `From ${esc(q.get('from'))}.` : 'Fill the plan, or open one from an alert or a scanner hit.'}</span>
+      <div style="display:flex;gap:8px"><button type="button" class="btn" id="c-now">Use price now</button><button class="btn btn-primary" id="c-run">Run the check</button></div></div>
+  </div></form>
+  <div id="check-out"></div>
+  <div class="grid-2" style="margin-top:16px">
+    <details class="panel" id="rules-panel"><summary class="panel-head" style="cursor:pointer"><h2>My limits</h2><span class="faint" style="font-size:12px">saved on this device</span></summary>
+      <form class="panel-body" id="rules-form" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px">
+        ${field('r-capitalInr', 'Capital (₹)', rules.capitalInr, 'inputmode="decimal"')}
+        ${field('r-maxLossInr', 'Max loss per trade (₹)', rules.maxLossInr, 'inputmode="decimal"')}
+        ${field('r-maxDailyLossInr', 'Max loss per day (₹)', rules.maxDailyLossInr, 'inputmode="decimal"')}
+        ${field('r-maxTradesPerDay', 'Trades per day', rules.maxTradesPerDay, 'inputmode="numeric"')}
+        ${field('r-minRR', 'Min reward:risk', rules.minRR, 'inputmode="decimal"')}
+        ${field('r-maxPositionPct', 'Max position (% of capital, stocks)', rules.maxPositionPct, 'inputmode="decimal"')}
+        ${field('r-entryFrom', 'No entries before', rules.entryFrom)}
+        ${field('r-entryTo', 'No entries after', rules.entryTo)}
+        ${field('r-flatBy', 'Flat by (replays end)', rules.flatBy)}
+        ${field('r-lot-NIFTY', 'Nifty lot size', rules.lot.NIFTY, 'inputmode="numeric"')}
+        ${field('r-lot-BANKNIFTY', 'Bank Nifty lot size', rules.lot.BANKNIFTY, 'inputmode="numeric"')}
+        ${field('r-lot-SENSEX', 'Sensex lot size', rules.lot.SENSEX, 'inputmode="numeric"')}
+        ${field('r-maxLots', 'Max lots per trade', rules.maxLots, 'inputmode="numeric"')}
+        ${field('r-cryptoCapitalUsd', 'Crypto capital ($)', rules.cryptoCapitalUsd, 'inputmode="decimal"')}
+        ${field('r-cryptoMaxLossUsd', 'Crypto max loss per trade ($)', rules.cryptoMaxLossUsd, 'inputmode="decimal"')}
+        ${field('r-cryptoMaxDailyLossUsd', 'Crypto max loss per day ($)', rules.cryptoMaxDailyLossUsd, 'inputmode="decimal"')}
+        <div class="form-row" style="grid-column:1/-1;margin:0"><span class="form-msg" id="r-msg">Index sizes are futures lots. NSE/BSE change lot sizes every few months: check yours with the broker.</span>
+          <button class="btn">Save limits</button></div>
+      </form></details>
+    <div class="panel"><div class="panel-head"><h2>Taken today</h2><span class="faint" style="font-size:12px">counts toward the day limits</span></div><div id="journal"></div></div>
+  </div>`;
+}
+
+function startCheck() {
+  ensureLive().then(() => { if (!hashParams.get('entry')) fillNow(); });
+  renderJournal();
+  $('#check-form').addEventListener('submit', (e) => { e.preventDefault(); runCheck(); });
+  $('#c-now').addEventListener('click', fillNow);
+  $('#rules-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const r = loadRules(), n = (id) => Number($(`#r-${id}`).value);
+    for (const k of ['capitalInr', 'maxLossInr', 'maxDailyLossInr', 'maxTradesPerDay', 'minRR', 'maxPositionPct', 'maxLots', 'cryptoCapitalUsd', 'cryptoMaxLossUsd', 'cryptoMaxDailyLossUsd']) {
+      if (Number.isFinite(n(k)) && n(k) >= 0) r[k] = n(k);
+    }
+    for (const k of ['entryFrom', 'entryTo', 'flatBy']) if (/^\d{1,2}:\d{2}$/.test($(`#r-${k}`).value.trim())) r[k] = $(`#r-${k}`).value.trim().padStart(5, '0');
+    r.lot = { ...r.lot };
+    for (const s of INDEX_SYMS) if (n(`lot-${s}`) > 0) r.lot[s] = n(`lot-${s}`);
+    LS.set('lt-rules', JSON.stringify(r));
+    $('#r-msg').textContent = 'Saved on this device.';
+  });
+  if (hashParams.get('entry') && hashParams.get('stop') && hashParams.get('target')) runCheck();
+}
+
+function fillNow() {
+  const sym = $('#c-sym')?.value.trim().toUpperCase();
+  const it = liveData?.watch?.find((w) => w.sym === sym) || liveData?.crypto?.coins?.find((c) => c.sym === sym);
+  if (it?.ltp && $('#c-entry')) { $('#c-entry').value = it.ltp; $('#c-msg').textContent = `Entry set to the last price, ${istTime(it.at || Date.now())} IST. Set the stop and target.`; }
+  else if ($('#c-msg')) $('#c-msg').textContent = 'No live price for this symbol here (stocks: take it from the scanner or your broker).';
+}
+
+function renderJournal() {
+  const box = $('#journal');
+  if (!box) return;
+  const all = loadJournal(), today = all.filter((j) => j.day === istDayNow());
+  box.innerHTML = today.length ? `<div class="list-rows">${today.map((j, i) => `
+    <div class="row" style="grid-template-columns:52px 1fr auto;cursor:default"><span class="mono faint">${istTime(j.at)}</span>
+      <div><div class="row-title">${esc(symName(j.sym))} · ${j.dir === 'up' ? 'long' : 'short'} ${esc(j.qty)} ${esc(j.unit)}</div>
+        <div class="row-sub mono">entry ${esc(j.entry)} · stop ${esc(j.stop)} · max loss ${esc(j.cur)}${esc(j.maxLoss)}</div></div>
+      <button class="icon-btn" data-del="${i}" aria-label="Remove">${icon('close')}</button></div>`).join('')}</div>`
+    : '<div class="empty">Nothing marked as taken today.</div>';
+  box.onclick = (e) => {
+    const b = e.target.closest('[data-del]');
+    if (!b) return;
+    const keep = loadJournal(), t = keep.filter((j) => j.day === istDayNow());
+    const gone = t[Number(b.dataset.del)];
+    LS.set('lt-journal', JSON.stringify(keep.filter((j) => j !== gone && !(j.at === gone.at && j.sym === gone.sym))));
+    renderJournal();
+  };
+}
+
+let checkRun = 0;
+async function runCheck() {
+  const out = $('#check-out'), msg = $('#c-msg');
+  const sym = $('#c-sym').value.trim().toUpperCase(), kind = symKind(sym);
+  const dir = $('#c-dir').value, num3 = (id) => Number(String($(id).value).replace(/,/g, ''));
+  const entry = num3('#c-entry'), stop = num3('#c-stop'), target = num3('#c-target');
+  const rule = $('#c-rule').value, rules = loadRules();
+  if (!kind) { msg.textContent = `${sym} is not one of the 3 indices, 3 coins or the Nifty 200 stocks.`; return; }
+  if (![entry, stop, target].every((x) => x > 0)) { msg.textContent = 'Entry, stop and target must be numbers.'; return; }
+  // Entry time: the alert's moment, a typed HH:MM on that day (IST), or now.
+  const baseAt = Number(hashParams.get('at')) || Date.now();
+  const t = $('#c-time').value.trim();
+  let at = baseAt;
+  if (/^\d{1,2}:\d{2}$/.test(t) && kind !== 'crypto') {
+    const [h, m] = t.split(':').map(Number);
+    at = Date.parse(`${istDay(baseAt)}T00:00:00+05:30`) + (h * 60 + m) * 60000;
+  }
+  const plan = { sym, kind, dir, entry, stop, target, at };
+  const run = ++checkRun;
+  out.innerHTML = '<div class="panel empty"><strong>Running…</strong>Fetching 5 min bars and replaying 10,000 sessions.</div>';
+  try {
+    const needHourly = kind === 'crypto' && rule.startsWith('detect');
+    const [b5, b60] = await Promise.all([api(`/bars?sym=${encodeURIComponent(sym)}&tf=5`), needHourly ? api(`/bars?sym=${sym}&tf=60`) : null]);
+    if (run !== checkRun) return;
+    const tm = timeMachine(b5.candles, plan, { flatBy: rules.flatBy, hours: 24 });
+    const ruleObj = rule === 'none' ? null : rule === 'orb15'
+      ? (kind === 'crypto' ? null : { type: 'orb15', dir, rT: Math.abs(target - entry) / Math.abs(entry - stop) })
+      : { type: 'detect', kind: rule.split(':')[1], dir };
+    const hist = ruleObj ? historyRun(kind === 'crypto' ? b60.candles : b5.candles, plan, ruleObj, { flatBy: rules.flatBy, entryTo: rules.entryTo }) : null;
+    const size = sizeTrade(plan, rules);
+    const today = loadJournal().filter((j) => j.day === istDayNow());
+    const risk = riskCheck(plan, size, rules, today, { marketOpen: kind === 'crypto' || marketOpen(liveData?.status) });
+    out.innerHTML = checkResults(plan, tm, hist, size, risk, b5, ruleObj && kind === 'crypto' && rule === 'orb15');
+    $('#c-take')?.addEventListener('click', () => {
+      const j = loadJournal();
+      j.push({ day: istDayNow(), at: Date.now(), sym, dir, entry, stop, target, qty: size.qty, unit: size.unit, maxLoss: size.maxLoss, cur: size.cur });
+      LS.set('lt-journal', JSON.stringify(j.slice(-200)));
+      renderJournal();
+      $('#c-take').disabled = true;
+      $('#c-take').textContent = 'Marked as taken';
+    });
+    msg.textContent = `${symName(sym)} · ${dir === 'up' ? 'long' : 'short'} · checked ${istTime(Date.now())} IST.`;
+  } catch (ex) {
+    if (run === checkRun) out.innerHTML = `<div class="panel empty"><strong>Could not run the check</strong>${esc(ex.message)}</div>`;
+  }
+}
+
+function checkResults(plan, tm, hist, size, risk, b5, orbCrypto) {
+  const P = (n) => (plan.kind === 'crypto' ? `$${cnum(n)}` : num(n));
+  const tile = (label, v, sub, color) => `<div class="stat"><div class="stat-label">${label}</div><div class="stat-value"${color ? ` style="color:var(--${color})"` : ''}>${v}</div><div class="stat-sub">${sub}</div></div>`;
+  const vlines = verdict(tm);
+  const tmBox = tm.error ? `<div class="panel empty"><strong>Time Machine could not run</strong>${esc(tm.error)}</div>` : `
+    <div class="panel"><div class="panel-head"><h2>Time Machine · ${tm.replays.toLocaleString('en-IN')} replays</h2><span class="faint mono" style="font-size:12px">seed ${tm.seed}</span></div>
+      <div class="panel-body" style="display:grid;gap:12px">
+        <div class="stats" style="margin:0">${tile('Target first', `${tm.target} %`, `${(tm.rT).toFixed(2)}R`, 'up')}${tile('Stop first', `${tm.stop} %`, '-1R', 'down')}${tile('Neither', `${tm.neither} %`, `open at ${esc(tm.untilLabel)}`)}${tile('Green', `${tm.green} %`, 'target, or above the entry at the end')}</div>
+        <div style="font-size:13.5px;line-height:1.6">
+          <div><b>${esc(vlines[0] || '')}</b></div>${vlines.slice(1).map((l) => `<div>${esc(l)}</div>`).join('')}
+          <div class="muted">Price at ${esc(tm.untilLabel)}: median ${P(tm.median)}, 90 % of replays between ${P(tm.p5)} and ${P(tm.p95)}. Average R ${tm.avgR > 0 ? '+' : ''}${tm.avgR}.</div>
+          <div class="muted">${hist ? `History: ${esc(hist.label)}. Over ${hist.sessions} past ${plan.kind === 'crypto' ? 'days' : 'sessions'} it fired ${hist.fired} times: ${hist.target} target, ${hist.stop} stop, ${hist.neither} neither${hist.notFilled ? ` (+${hist.notFilled} whose stop-order entry never filled)` : ''}. Average R ${hist.avgR === null ? '–' : (hist.avgR > 0 ? '+' : '') + hist.avgR}.`
+            : orbCrypto ? 'History: the opening range rule needs a market open, so crypto has none.' : 'History: pick a rule under "Past record of" to see how the same rule did on every past session.'}</div>
+        </div>
+        <div class="faint" style="font-size:12px">Built from ${tm.sessions} full past ${plan.kind === 'crypto' ? 'days of 5 min bars (Delta)' : 'sessions of 5 min bars (Upstox)'}, each bar drawn from the same time of day (±2 bars), ${tm.bars} bars per replay; a bar touching both counts as the stop, and a gap through the stop counts as -1R (a real fill can be worse). Not a prediction: news and events can do things those sessions never did. <a href="#/news">Check the news</a>.</div>
+      </div></div>`;
+  const cur = size.cur || (plan.kind === 'crypto' ? '$' : '₹');
+  const sizeBox = `<div class="panel"><div class="panel-head"><h2>Position size</h2><span class="faint" style="font-size:12px">${plan.kind === 'index' ? 'index futures lots' : plan.kind === 'stock' ? 'shares' : 'coins'}</span></div>
+    <div class="facts">${(size.limits || []).map((l) => `<div class="fact"><span>${esc(l.name)}<br><span class="faint mono" style="font-size:11.5px">${esc(l.math)}</span></span><span class="mono">${esc(l.qty)}${l.name === size.decidedBy ? ' ◀' : ''}</span></div>`).join('')}
+      <div class="fact"><span>Result</span><span class="mono" style="${size.refused ? 'color:var(--down)' : ''}">${size.refused ? esc(size.refused) : `${size.qty} ${size.unit} · value ${cur}${num(size.value)} · max loss at the stop ${cur}${num(size.maxLoss)}`}</span></div></div>
+    <div class="panel-body faint" style="font-size:12px;padding-top:10px">A stop is an order, not a promise: in a fast market it can fill worse. ${plan.kind === 'index' ? 'Options are sized differently (premium, not points).' : ''}</div></div>`;
+  const riskBox = `<div class="panel"><div class="panel-head"><h2>Risk check</h2><span class="tag ${risk.pass ? 'tag-up' : 'tag-down'}">${risk.pass ? 'PASS' : 'BLOCK'}</span></div>
+    <div class="facts">${risk.checks.map((c) => `<div class="fact"><span>${c.ok ? '✓' : '✗'} ${esc(c.name)}</span><span class="mono" style="font-size:12.5px;${c.ok ? '' : 'color:var(--down)'}">${esc(c.text)}</span></div>`).join('')}</div>
+    <div class="panel-body" style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+      <span class="faint" style="font-size:12px">A PASS is a rules check, not a recommendation. Lets Trade never places orders.</span>
+      ${risk.pass ? '<button class="btn" id="c-take">I took this trade</button>' : ''}</div></div>`;
+  return `${tmBox}<div class="grid-2" style="margin-top:16px">${sizeBox}${riskBox}</div>`;
+}
+
+// ---------- Stock Scanner (Nifty 200) ----------
+const SETUP_LABEL = { breakout_20d: '20 day breakout', breakdown_20d: '20 day breakdown', bull_flag: 'Bull flag', reclaim_ma20: 'Reclaimed 20 day average',
+  oversold: 'Oversold (RSI under 30)', oversold_bounce: 'Oversold bounce' };
+let scanFilter = 'all', scanData = null;
+
+function pageScan() {
+  return `
+  <div class="page-head"><div><div class="kicker">Stock Scanner · Nifty 200</div><h1>Charts that match a rule</h1>
+    <p>Opening range breaks during the session and daily setups before the open, on the 200 Nifty 200 stocks.
+    A scan is a list of charts that match a rule, not a list of stocks to buy.</p></div></div>
+  <div id="scan-body"><div class="panel empty"><strong>Loading the scan…</strong></div></div>`;
+}
+
+async function loadScan() {
+  try { scanData = await api('/scan'); } catch (ex) { scanData = { error: ex.message }; }
+  renderScan();
+}
+
+function renderScan() {
+  const box = $('#scan-body');
+  if (!box || !scanData) return;
+  if (scanData.error) { box.innerHTML = `<div class="panel empty"><strong>Could not load the scan</strong>${esc(scanData.error)}</div>`; return; }
+  const { orb, daily } = scanData, today = istDayNow();
+  const orbToday = orb?.day === today ? orb : null;
+  const orbRows = (orbToday?.hits || []).map((h) => {
+    const mid = (h.orh + h.orl) / 2, risk = Math.abs(h.close - mid);
+    const tgt = h.dir === 'up' ? h.close + 2 * risk : h.close - 2 * risk;
+    const at = Date.parse(`${today}T00:00:00+05:30`) + h.time * 60000;
+    return `<div class="row" style="grid-template-columns:52px 1fr auto;cursor:default">
+      <span class="mono faint">${hm(h.time)}</span>
+      <div><div class="row-title">${esc(h.sym)} <span class="faint" style="font-weight:400">${esc(h.name)}</span> · <span style="color:var(--${h.dir === 'up' ? 'up' : 'down'})">${h.dir === 'up' ? 'above ↑' : 'below ↓'} the range</span></div>
+        <div class="row-sub mono">5 min close ${num(h.close)} (${h.pct > 0 ? '+' : ''}${num(h.pct)} % past ${num(h.dir === 'up' ? h.orh : h.orl)}) · range ${num(h.orl)}-${num(h.orh)} · ${esc(h.ind)}</div></div>
+      <div style="display:flex;gap:6px"><button class="chip" data-chart="${esc(h.sym)}">Chart</button>
+        <a class="chip" style="display:inline-flex;align-items:center" href="${checkLink({ sym: h.sym, dir: h.dir, entry: h.close, stop: Math.round(mid * 100) / 100, target: Math.round(tgt * 100) / 100, at, rule: 'orb15', from: `the scanner (${hm(h.time)} opening range break)` })}">Check</a></div></div>`;
+  }).join('');
+  const dHits = daily?.hits || [];
+  const counts = {};
+  for (const h of dHits) counts[h.setup] = (counts[h.setup] || 0) + 1;
+  const shown = dHits.filter((h) => scanFilter === 'all' || h.setup === scanFilter);
+  box.innerHTML = `
+    <div class="panel" style="margin-bottom:16px"><div class="panel-head"><h2>Opening range breaks · ${esc(today)}</h2><span class="faint mono">${orbToday?.hits?.length || 0}</span></div>
+      <div class="panel-body faint" style="font-size:12.5px;padding-bottom:0">${orbToday ? `Checked ${orbToday.at ? istTime(orbToday.at) : '–'} IST: ${orbToday.candidates ?? '–'} stocks past their 09:30 range on the quote, the ${orbToday.checked ?? 0} most traded confirmed on real 5 min candles each run. A hit is the first completed 5 min bar that CLOSES past the 15 minute range. Runs 09:30-14:45 on trading days.`
+        : 'No opening range scan today yet. It runs every 5 minutes from 09:30 to 14:45 IST on trading days.'}</div>
+      ${orbRows ? `<div class="list-rows" style="margin-top:8px">${orbRows}</div>` : `<div class="empty">${orbToday ? 'No confirmed breaks yet.' : ''}</div>`}</div>
+    <div class="panel"><div class="panel-head"><h2>Daily setups${daily?.hits ? ` · closes of ${esc(dHits[0]?.asOf || daily.day)}` : ''}</h2><span class="faint mono">${shown.length}</span></div>
+      ${daily?.inProgress !== undefined ? `<div class="empty">Scanning before the open: ${daily.inProgress} of ${daily.of} stocks read.</div>` : !daily ? '<div class="empty">No daily scan yet. It runs at 08:00-08:10 IST on trading days.</div>' : `
+      <div class="panel-body" style="padding-bottom:0"><div class="chips">
+        <button class="chip" data-sf="all" aria-pressed="${scanFilter === 'all'}">All <span class="n">${dHits.length}</span></button>
+        ${Object.keys(SETUP_LABEL).filter((k) => counts[k]).map((k) => `<button class="chip" data-sf="${k}" aria-pressed="${scanFilter === k}">${esc(SETUP_LABEL[k])} <span class="n">${counts[k]}</span></button>`).join('')}</div>
+        <p class="faint" style="font-size:12px;margin:10px 0 0">Ran ${istTime(daily.at)} IST on ${daily.scanned} stocks${daily.failed?.length ? ` (${daily.failed.length} failed)` : ''}. Setups use daily closes only. Most traded first.</p></div>
+      <div class="list-rows" style="margin-top:8px">${shown.slice(0, 150).map((h) => `
+        <div class="row" style="grid-template-columns:1fr auto;cursor:default">
+          <div><div class="row-title">${esc(h.sym)} <span class="faint" style="font-weight:400">${esc(h.name)}</span> · <span style="color:var(--${h.dir === 'up' ? 'up' : 'down'})">${esc(SETUP_LABEL[h.setup] || h.setup)}</span></div>
+            <div class="row-sub">${esc(h.note)} · close ${num(h.close)} (${h.chgPct > 0 ? '+' : ''}${num(h.chgPct)} %) · ${esc(h.ind)}</div></div>
+          <button class="chip" data-chart="${esc(h.sym)}">Chart</button></div>`).join('')}</div>`}</div>`;
+  box.onclick = (e) => {
+    const c = e.target.closest('[data-chart]');
+    if (c) return openChart(c.dataset.chart);
+    const f = e.target.closest('[data-sf]');
+    if (f) { scanFilter = f.dataset.sf; renderScan(); }
+  };
+}
+
+// ---------- Market News ----------
+let newsFilter = 'all', newsData = null, newsSeen = 0;
+const NEWS_FILTERS = { all: 'All', india: 'Indian market', crypto: 'Crypto', watch: 'Names our symbols', earnings: 'Earnings', policy: 'RBI / Fed',
+  macro: 'Macro', flows: 'FII / DII', global: 'Global', regulatory: 'Regulatory', deal: 'Deals', hack: 'Hacks' };
+
+function pageNews() {
+  return `
+  <div class="page-head"><div><div class="kicker">Market News</div><h1>Headlines that move the market</h1>
+    <p>Indian market and crypto headlines from the last 48 hours, tagged by what they touch. Headlines are leads, not facts:
+    open the story before acting, and never trade on a headline alone.</p></div>
+    <button class="btn" id="news-refresh">Refresh</button></div>
+  <div id="news-body"><div class="panel empty"><strong>Loading headlines…</strong></div></div>`;
+}
+
+async function loadNews() {
+  $('#news-refresh')?.addEventListener('click', loadNews);
+  newsSeen = Number(LS.get('lt-news-seen')) || 0;
+  try { [newsData] = await Promise.all([api('/news'), ensureLive()]); } catch (ex) { newsData = { error: ex.message }; }
+  renderNews();
+  if (newsData?.items?.length) LS.set('lt-news-seen', String(newsData.items[0].at));
+}
+
+function renderNews() {
+  const box = $('#news-body');
+  if (!box || !newsData) return;
+  if (newsData.error) { box.innerHTML = `<div class="panel empty"><strong>Could not load the news</strong>${esc(newsData.error)}</div>`; return; }
+  // MOVING: an index 1 % or more from yesterday's close, a coin 3 % or more over 24 hours.
+  const moving = [...(liveData?.watch || []).filter((w) => Math.abs(w.chgPct || 0) >= 1).map((w) => `${w.name} ${w.chgPct > 0 ? '+' : ''}${num(w.chgPct)} % vs yesterday's close`),
+    ...(liveData?.crypto?.coins || []).filter((c) => Math.abs(c.chgPct || 0) >= 3).map((c) => `${c.name} ${c.chgPct > 0 ? '+' : ''}${num(c.chgPct)} % in 24 hours`)];
+  const items = newsData.items.filter((x) => newsFilter === 'all' || x.group === newsFilter || (newsFilter === 'watch' ? x.syms.length : x.tags.includes(newsFilter)));
+  const count = (f) => newsData.items.filter((x) => f === 'all' || x.group === f || (f === 'watch' ? x.syms.length : x.tags.includes(f))).length;
+  const when = (t) => (istDay(t) === istDayNow() ? istTime(t) : `${new Date(t + 330 * 60000).toUTCString().slice(5, 11)} ${istTime(t)}`);
+  box.innerHTML = `
+    ${moving.length ? `<div class="panel" style="margin-bottom:12px;padding:12px 16px"><b>MOVING</b> · ${moving.map(esc).join(' · ')}<span class="faint"> · a move with no headline is worth noticing too</span></div>` : ''}
+    <div class="chips" style="margin-bottom:12px">${Object.entries(NEWS_FILTERS).filter(([k]) => k === 'all' || count(k)).map(([k, v]) =>
+      `<button class="chip" data-nf="${k}" aria-pressed="${newsFilter === k}">${esc(v)} <span class="n">${count(k)}</span></button>`).join('')}</div>
+    <div class="panel"><div class="list-rows">${items.length ? items.map((x) => `
+      <a class="row" style="grid-template-columns:70px 1fr" href="${esc(x.link)}" target="_blank" rel="noopener noreferrer">
+        <span class="mono faint" style="font-size:12px">${when(x.at)}</span>
+        <div><div class="row-title">${x.at > newsSeen && newsSeen ? '<span class="tag tag-accent" style="margin-right:6px">New</span>' : ''}${esc(x.title)}</div>
+          <div class="row-sub">${esc(x.src)}${x.syms.map((s) => ` · <span class="mono" style="color:var(--accent)">${esc(s)}</span>`).join('')}${x.tags.map((t) => ` · ${esc(t)}`).join('')}</div></div></a>`).join('')
+      : '<div class="empty">No headlines under this filter.</div>'}</div></div>
+    <p class="faint" style="font-size:12px;margin-top:10px">Sources: ${newsData.feeds.map((f) => `${esc(f.src)}${f.ok ? '' : ' (failed)'}`).join(', ')}. Updated ${istTime(newsData.at)} IST, kept 10 minutes. Times are IST.</p>`;
+  box.onclick = (e) => { const f = e.target.closest('[data-nf]'); if (f) { newsFilter = f.dataset.nf; renderNews(); } };
+}
+
 // ---------- router ----------
-let lastPage = '';
+let lastPage = '', hashParams = new URLSearchParams();
 function render() {
-  const [page = '', arg = ''] = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
+  const [path, query = ''] = location.hash.replace(/^#\/?/, '').split('?');
+  const [page = '', arg = ''] = path.split('/').map(decodeURIComponent);
+  hashParams = new URLSearchParams(query);
   const current = { '': 'home', s: 'library', v: 'videos', later: arg }[page] ?? page;
   if (page !== 'live') clearInterval(liveTimer);
   renderShell(current);
@@ -1060,10 +1384,13 @@ function render() {
 
   const view = $('#view');
   const pages = { '': pageHome, live: pageLive, library: pageLibrary, s: () => pageStrategy(arg), videos: pageVideos,
-    v: () => pageVideo(arg), mine: pageMine, later: () => pageLater(arg) };
+    v: () => pageVideo(arg), mine: pageMine, later: () => pageLater(arg), check: pageCheck, scan: pageScan, news: pageNews };
   view.innerHTML = (pages[page] || pageHome)();
   if (page === 'library') libResults();
   if (page === 'live') startLive();
+  if (page === 'check') startCheck();
+  if (page === 'scan') loadScan();
+  if (page === 'news') loadNews();
   if (page === 'videos') vidResults();
   if (page === 'v') loadTranscript(arg);
   if (page === 'mine') $('#note-form').addEventListener('submit', saveNote);
@@ -1071,7 +1398,7 @@ function render() {
   const key = `${page}/${arg}`;
   if (key !== lastPage) window.scrollTo(0, 0);
   lastPage = key;
-  const title = { live: 'Live Market', library: 'Strategies', videos: 'Videos', mine: 'My Strategies' }[page];
+  const title = { live: 'Live Market', library: 'Strategies', videos: 'Videos', mine: 'My Strategies', check: 'Trade Check', scan: 'Scanner', news: 'News' }[page];
   document.title = title ? `${title} · Lets Trade` : 'Lets Trade';
 }
 
