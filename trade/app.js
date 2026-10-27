@@ -1375,7 +1375,7 @@ function renderNews() {
   box.onclick = (e) => { const f = e.target.closest('[data-nf]'); if (f) { newsFilter = f.dataset.nf; renderNews(); } };
 }
 
-// ---------- Paper Race: virtual ₹1,000 each, live prices, every action posted to the Telegram channel ----------
+// ---------- Paper Race: virtual ₹10,000 each, live prices, every action posted to the Telegram channel ----------
 let raceData = null, raceTimer = null, raceSel = null, raceSide = 'long', raceQuote = null, raceTab = 'positions';
 const rupee = (n) => `₹${num(n)}`;
 const signed = (n, f = rupee) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${f(Math.abs(n))}`;
@@ -1408,7 +1408,7 @@ async function loadHomeRace() {
     box.innerHTML = `<div class="panel-head"><h2>Paper Race · standings</h2><a href="#/race">Open the race</a></div>
       ${d.players.length ? `<div class="list-rows">${standingsRows(d.players, true)}</div>
         <div class="panel-body faint" style="font-size:12px;padding-top:10px">Virtual money only: ₹${num(d.startCash, 0)} each at live prices. ${d.season.startedAt ? `Running since ${new Date(d.season.startedAt + 330 * 60000).toUTCString().slice(5, 16)}.` : ''}</div>`
-        : '<div class="empty"><strong>No one in the race yet</strong><a href="#/race">Add people</a> and each gets ₹1,000 of virtual money.</div>'}`;
+        : '<div class="empty"><strong>No one in the race yet</strong><a href="#/race">Add people</a> and each gets ₹10,000 of virtual money.</div>'}`;
   } catch (ex) {
     box.innerHTML = `<div class="panel-head"><h2>Paper Race</h2><a href="#/race">Open</a></div><div class="empty">${esc(ex.message)}</div>`;
   }
@@ -1417,20 +1417,20 @@ async function loadHomeRace() {
 function pageRace() {
   return `
   <div class="page-head"><div><div class="kicker">Paper Race · virtual money</div><h1>Trade like it's real, learn for free</h1>
-    <p>Each person gets ₹1,000 of virtual money and trades Nifty 200 stocks and ETH, SOL, XRP at live market prices: long or short,
+    <p>Each person gets ₹10,000 of virtual money and trades Nifty 200 stocks and ETH, SOL, XRP at live market prices: long or short,
     never more than their cash. Every order and exit is posted to the Telegram channel. No real money, no real orders.</p></div>
     <button class="btn" id="race-add-btn">Add person</button></div>
   <div class="panel" style="margin-bottom:16px;padding:10px 16px;border-color:var(--accent);color:var(--accent);font-size:13px">VIRTUAL MONEY · practice only · prices are live (stocks 09:15-15:30 IST on trading days, crypto 24 hours, crypto shown in ₹ at the live dollar rate)</div>
   <form class="panel" id="race-add" hidden style="margin-bottom:16px"><div class="panel-body" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;align-items:end">
     <label class="field"><span>Name</span><input class="input" id="ra-name" maxlength="24" required></label>
     <label class="field"><span>4-digit PIN (to trade)</span><input class="input mono" id="ra-pin" inputmode="numeric" pattern="\\d{4}" maxlength="4" required></label>
-    <button class="btn btn-primary">Add with ₹1,000</button></div><div class="panel-body form-msg" id="ra-msg" style="padding-top:0"></div></form>
+    <button class="btn btn-primary">Add with ₹10,000</button></div><div class="panel-body form-msg" id="ra-msg" style="padding-top:0"></div></form>
   <div class="grid-2" style="align-items:start">
     <div id="race-account"></div>
     <div class="stack" style="display:grid;gap:16px">
       <div class="panel"><div class="panel-head"><h2>Standings</h2><span class="faint mono" id="race-upd"></span></div><div id="race-board"><div class="empty">Loading…</div></div></div>
       <details class="panel"><summary class="panel-head" style="cursor:pointer"><h2>Reset or leave</h2></summary><div class="panel-body" style="display:grid;gap:10px;font-size:13px">
-        <div>Reset starts everyone again at ₹1,000 and clears all trades. Type RESET:</div>
+        <div>Reset starts everyone again at ₹10,000 and clears all trades. Type RESET:</div>
         <div style="display:flex;gap:8px"><input class="input mono" id="race-reset-txt" placeholder="RESET" style="max-width:140px"><button class="btn" id="race-reset">Reset the race</button></div>
         <div class="faint">To leave the race, open your account and use "Leave the race" (needs your PIN).</div>
         <div class="form-msg" id="race-reset-msg"></div></div></details>
@@ -1451,7 +1451,7 @@ function startRace() {
     } catch (ex) { $('#ra-msg').textContent = ex.message; }
   });
   $('#race-reset').addEventListener('click', async () => {
-    try { await apiPost('/paper/reset', { confirm: $('#race-reset-txt').value.trim() }); $('#race-reset-msg').textContent = 'Reset. Everyone has ₹1,000 again.'; await loadRace(); }
+    try { await apiPost('/paper/reset', { confirm: $('#race-reset-txt').value.trim() }); $('#race-reset-msg').textContent = 'Reset. Everyone has ₹10,000 again.'; await loadRace(); }
     catch (ex) { $('#race-reset-msg').textContent = ex.message; }
   });
   $('#race-board').addEventListener('click', (e) => { const b = e.target.closest('[data-pl]'); if (b) { raceSel = Number(b.dataset.pl); raceQuote = null; renderRace(); } });
