@@ -98,7 +98,7 @@ export function detect(c, today, { tick = 0.05, session = true, tf = '5 min' } =
   const events = [];
   const plan = (dir, entry, stop) => {
     const r = Math.abs(entry - stop);
-    return { dir, entry, stop, target: dir === 'up' ? entry + 2 * r : entry - 2 * r, r };
+    return { dir, entry, stop, target: dir === 'up' ? entry + 2 * r : entry - 2 * r, r, atr: a[i] };
   };
 
   // 1. Opening range break (manual setup 61 for longs; a break down is information only).

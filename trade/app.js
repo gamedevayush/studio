@@ -1394,7 +1394,7 @@ function standingsRows(players, link) {
   return players.map((p, i) => `
     <${link ? 'a' : 'button'} class="row" ${link ? 'href="#/race"' : `data-pl="${p.id}"`} style="grid-template-columns:28px 1fr auto;width:100%;text-align:left;background:${!link && p.id === raceSel ? 'var(--panel-2)' : 'none'};border:0;border-top:1px solid var(--line);color:inherit;font:inherit;cursor:pointer">
       <span class="mono" style="color:${i === 0 ? 'var(--accent)' : 'var(--faint)'}">#${i + 1}</span>
-      <div><div class="row-title">${esc(p.name)}</div><div class="row-sub">${p.positions.length} open · ${p.tradeCount} trades · cash ${rupee(p.cash)}</div></div>
+      <div><div class="row-title">${esc(p.name)}${p.auto ? ' <span class="tag tag-accent">AI</span>' : ''}</div><div class="row-sub">${p.positions.length} open · ${p.tradeCount} trades · cash ${rupee(p.cash)}</div></div>
       <div style="text-align:right;font-family:var(--mono)"><div>${rupee(p.equity)}</div><div style="font-size:12px;color:${pnlColor(p.pnl)}">${signed(p.pnl)} (${p.returnPct > 0 ? '+' : ''}${num(p.returnPct)} %)</div></div>
     </${link ? 'a' : 'button'}>`).join('');
 }
@@ -1485,6 +1485,12 @@ function renderRace(quiet) {
         <div class="stat"><div class="stat-label">Invested</div><div class="stat-value">${rupee(invested)}</div><div class="stat-sub">${p.positions.length} open</div></div>
         <div class="stat"><div class="stat-label">Open P&amp;L</div><div class="stat-value" style="color:${pnlColor(open)}">${signed(open)}</div><div class="stat-sub">live prices</div></div>
       </div></div>
+    ${p.auto ? `<div class="panel" style="margin-bottom:16px"><div class="panel-head"><h2>AI trades this account</h2><span class="tag tag-accent">auto</span></div>
+      <div class="panel-body faint" style="font-size:12.5px;padding-bottom:${p.auto.pending.length ? 0 : 14}px">Library setups only, 0.25 % of the account at risk a trade, stop and 2R target set at entry. Waiting orders fill when the price trades through them.</div>
+      ${p.auto.pending.length ? `<div class="list-rows">${p.auto.pending.map((o) => `
+        <div class="row" style="grid-template-columns:1fr auto;cursor:default"><div><div class="row-title"><span class="tag ${o.dir === 'up' ? 'tag-up' : 'tag-down'}">${o.dir === 'up' ? 'BUY STOP' : 'SELL STOP'}</span> ${esc(o.sym)}</div>
+          <div class="row-sub mono">entry ${o.cur}${num(o.entry)} · stop loss ${o.cur}${num(o.stop)} · ${esc(o.setup)}</div></div>
+          <span class="mono faint" style="font-size:12px">till ${istTime(o.until)}</span></div>`).join('')}</div>` : ''}</div>` : ''}
     <form class="panel" id="race-order" style="margin-bottom:16px"><div class="panel-head"><h2>Place order</h2><span class="faint" style="font-size:12px">market order · fills at the live price</span></div>
       <div class="panel-body" style="display:grid;gap:12px">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
@@ -1506,7 +1512,8 @@ function renderRace(quiet) {
       ${raceTab === 'positions' ? (p.positions.length ? `<div class="list-rows">${p.positions.map((x) => `
         <div class="row" style="grid-template-columns:1fr auto auto;cursor:default">
           <div><div class="row-title"><span class="tag ${x.side === 'long' ? 'tag-up' : 'tag-down'}">${x.side === 'long' ? 'LONG' : 'SHORT'}</span> ${esc(x.sym)} <span class="faint" style="font-weight:400">${esc(x.name)}</span></div>
-            <div class="row-sub mono">qty ${num(x.qty, x.qty < 1 ? 6 : 2)} · avg ${num(x.entry)} · LTP ${num(x.price)}${x.priced ? '' : ' (no price now)'} · ${istTime(x.opened)}</div></div>
+            <div class="row-sub mono">qty ${num(x.qty, x.qty < 1 ? 6 : 2)} · avg ${num(x.entry)} · LTP ${num(x.price)}${x.priced ? '' : ' (no price now)'} · ${istTime(x.opened)}</div>
+            ${p.auto?.plans[x.id] ? ((t) => `<div class="row-sub mono">AI plan: stop ${t.cur}${num(t.stop)} · target ${t.cur}${num(t.target)} · out by ${istTime(t.exitBy)}</div>`)(p.auto.plans[x.id]) : ''}</div>
           <div style="text-align:right;font-family:var(--mono);color:${pnlColor(x.pnl)}">${signed(x.pnl)}<div style="font-size:12px">${x.pnlPct > 0 ? '+' : ''}${num(x.pnlPct)} %</div></div>
           <div style="display:flex;gap:6px"><button class="chip" data-chart="${esc(x.sym)}">Chart</button><button class="chip" data-exit="${x.id}">Exit</button></div></div>`).join('')}</div>`
         : '<div class="empty">No open positions.</div>')
