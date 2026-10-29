@@ -28,13 +28,13 @@
 <main id="connect" hidden>
   <section class="panel card">
     <h2>Start the Studio helper</h2>
-    <p>The <span id="cname">PPT Creator</span> runs on Ayush's Local LLM, through a small helper program on your PC. This page cannot reach it right now.</p>
+    <p>The <span id="cname">PPT Creator</span> runs on Ayush's Local LLM, through the Studio helper on your PC.</p>
     <ol>
-      <li>On the PC where the local LLM is set up, type <code>studio</code> in the Run box (Win+R) or a terminal, or double-click "Ayush Studio helper" on the Desktop. It starts the helper in the background and opens this page.</li>
-      <li>If the browser asks to <b>allow access to apps or devices on this computer</b>, click <b>Allow</b>. Without it the page cannot talk to the helper. Clicked Block by mistake? Click the icon left of the address, allow <b>Local network access</b> (Brave: <b>Localhost access</b>), and reload.</li>
-      <li>Use this page on that same PC. The helper only answers this site, only on that PC.</li>
+      <li><b>Start the helper:</b> type <code>studio</code> in the Run box (Win+R), or double-click "Ayush Studio helper" on the Desktop. The creator opens by itself.</li>
+      <li><b>Helper already running?</b> Press <b>Open on this PC</b> below.</li>
     </ol>
-    <div class="createrow"><span class="status grow" id="connstatus">Looking for the helper…</span><button class="btn primary" id="retry">Try again</button></div>
+    <p class="hint">Chrome and Edge can also run it right on this page: allow "access to apps on this device" when the browser asks. Brave blocks that unless Localhost access is allowed for this site, so use Open on this PC there.</p>
+    <div class="createrow"><span class="status grow" id="connstatus">Looking for the helper…</span><button class="btn" id="retry">Try again</button><a class="btn primary" id="openlocal" href="http://127.0.0.1:4455/tools/ppt-creator/">Open on this PC</a></div>
   </section>
 </main>
 
