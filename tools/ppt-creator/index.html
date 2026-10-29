@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PPT Creator · Ayush AI</title>
+<meta name="description" content="Claude designs your presentation from a prompt and references. Edit every slide right here, then download PowerPoint or PDF.">
+<meta name="theme-color" content="#07060d">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop stop-color='%23a78bfa'/%3E%3Cstop offset='1' stop-color='%23f472b6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='url(%23g)'/%3E%3Crect x='7' y='9' width='18' height='12' rx='2' fill='none' stroke='white' stroke-width='2.4'/%3E%3Cpath d='M12 25h8' stroke='white' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../creator/app.css">
+</head>
+<body>
+<header>
+  <a class="brand" href="../../" title="Back to Ayush AI">
+    <span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="8" stroke-dasharray="32 18"/><circle cx="12" cy="12" r="2.6" fill="#fff" stroke="none"/></svg></span>
+    <h1>Ayush AI</h1>
+  </a>
+  <nav class="apps" aria-label="Creators"><a href="../ppt-creator/" id="navppt">PPT Creator</a><a href="../pdf-creator/" id="navpdf">PDF Creator</a></nav>
+  <span id="pill" class="pill"><span class="dot"></span><span id="pilltext">Ready</span></span>
+  <select id="docsel" aria-label="Open"></select>
+  <button class="btn" id="newbtn">+ New</button>
+</header>
+
+<!-- ======================================================= the helper on this PC is not running -->
+<main id="connect" hidden>
+  <section class="panel card">
+    <h2>Start the Studio helper</h2>
+    <p>The <span id="cname">PPT Creator</span> designs with Claude on your own PC, through a small helper program. This page cannot reach it right now.</p>
+    <ol>
+      <li>On the PC with your Claude login, type <code>studio</code> in a terminal or the Run box (Win+R). It starts the helper in its own window; keep that window open.</li>
+      <li>If the browser asks to <b>allow access to apps or devices on this computer</b>, click <b>Allow</b>. Without it the page cannot talk to the helper.</li>
+      <li>Use this page on that same PC. The helper only answers this site, only on that PC.</li>
+    </ol>
+    <div class="createrow"><span class="status grow" id="connstatus">Looking for the helper…</span><button class="btn primary" id="retry">Try again</button></div>
+  </section>
+</main>
+
+<!-- ======================================================= new -->
+<main id="newview">
+  <section class="panel create">
+    <div class="head" id="newhead">New presentation</div>
+    <div class="body">
+      <h2 id="newtitle">What should the <span>presentation</span> be about?</h2>
+      <p class="sub" id="newsub">Claude designs it from scratch. Afterwards every slide is editable right here.</p>
+      <textarea id="prompt" placeholder="A topic, an outline, notes or the full content. e.g. &quot;10-slide pitch for our school's solar plan: costs, savings, timeline, for parents&quot;"></textarea>
+      <div class="drop" id="drop">
+        <button type="button" class="btn small" id="refbtn">+ References</button>
+        <input type="file" id="reffiles" multiple hidden>
+        <div class="chips grow" id="refchips"></div>
+        <span class="hint" id="drophint">PDF, Word, PowerPoint, pictures or text: content to use, a look to follow, or pictures to put in. Drop files here.</span>
+      </div>
+      <div class="field">
+        <label>Effort</label>
+        <div class="inline"><div class="seg" id="effort"></div><span class="hint" id="efforthint"></span></div>
+      </div>
+      <details class="opt" id="optional">
+        <summary>Optional: color theme, style, size</summary>
+        <div class="inner">
+          <div class="field"><label>Color theme</label><div class="swatches" id="themes"></div></div>
+          <div class="field" id="customrow" hidden><label></label><div id="customcolors"><input type="color" id="c1" value="#1e1b4b"><input type="color" id="c2" value="#8b5cff"><input type="color" id="c3" value="#22e7ff"><input type="color" id="c4" value="#ffffff"><span class="hint">main · accent · highlight · light</span></div></div>
+          <div class="field"><label>Style</label><div class="inline" id="styles"></div></div>
+          <div class="field"><label></label><input type="text" id="styletext" placeholder="Or describe the style in your words (optional)" maxlength="200"></div>
+          <div class="field" id="sizerow"><label>Size</label><div class="inline"><div class="seg" id="size"></div><div class="seg" id="orient"></div></div></div>
+          <div class="field"><label id="countlabel">Slides</label><div class="inline"><input type="number" id="count" min="1" max="60" placeholder="Auto" style="width:90px"><span class="hint">Leave empty and Claude decides.</span></div></div>
+          <div class="field"><label>Name</label><input type="text" id="title" placeholder="Optional; taken from the content otherwise" maxlength="100"></div>
+        </div>
+      </details>
+      <div class="createrow">
+        <span class="hint grow">Enter to create · Shift+Enter for a new line</span>
+        <button class="btn primary" id="create">Create ✨</button>
+      </div>
+    </div>
+  </section>
+  <section class="panel">
+    <div class="head" id="recenthead">Your presentations</div>
+    <div id="recent"></div>
+  </section>
+</main>
+
+<!-- ======================================================= editor -->
+<main id="editview" hidden>
+  <aside class="panel">
+    <div class="head"><span id="pagesword">Slides</span> <span class="grow"></span><span class="count" id="pagecount"></span></div>
+    <div id="thumbs"></div>
+    <div class="foot"><button class="btn small" id="addpage">+ Slide</button><button class="btn small" id="duppage">Duplicate</button></div>
+  </aside>
+
+  <section class="panel" id="center">
+    <div class="toolbar">
+      <input type="text" id="doctitle" maxlength="100" title="Name (click to rename)">
+      <span class="sep"></span>
+      <button class="tb" id="undo" title="Undo (Ctrl+Z)">↶</button>
+      <button class="tb" id="redo" title="Redo (Ctrl+Y)">↷</button>
+      <span class="sep"></span>
+      <button class="tb" id="addtext" title="Add a text box">T+</button>
+      <button class="tb" id="addimg" title="Add a picture">🖼</button>
+      <button class="tb" id="addshape" title="Add a shape">◼</button>
+      <input type="file" id="imgfile" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" hidden>
+      <span class="sep"></span>
+      <select id="font" title="Font"></select>
+      <input type="number" id="fsize" min="6" max="400" title="Text size (px)">
+      <button class="tb" id="bold" title="Bold (Ctrl+B)"><b>B</b></button>
+      <button class="tb" id="italic" title="Italic (Ctrl+I)"><i>I</i></button>
+      <button class="tb" id="under" title="Underline (Ctrl+U)"><u>U</u></button>
+      <input type="color" id="tcolor" title="Text color">
+      <button class="tb" data-align="left" title="Align left">⯇</button>
+      <button class="tb" data-align="center" title="Center">≡</button>
+      <button class="tb" data-align="right" title="Align right">⯈</button>
+      <span class="sep"></span>
+      <button class="tb" id="dup" title="Duplicate (Ctrl+D)">⧉</button>
+      <button class="tb" id="front" title="Bring forward">⬆</button>
+      <button class="tb" id="back" title="Send backward">⬇</button>
+      <button class="tb" id="del" title="Delete (Del)">🗑</button>
+      <span class="grow"></span>
+      <select id="zoom" title="Zoom"><option value="fit">Fit</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1">100%</option><option value="1.5">150%</option></select>
+      <span id="savestate"></span>
+      <button class="btn small" id="versions">Versions</button>
+      <button class="btn primary small" id="download">⬇ Download</button>
+    </div>
+    <div id="canvaswrap">
+      <div id="busybar" hidden><span class="orb"></span><span id="busytext">Claude is working. Watch it change here; editing is back when it is done.</span></div>
+      <div id="canvas"><iframe id="frame" title="Design"></iframe></div>
+      <div id="placeholder" hidden><div><div class="big" id="phbig"></div><div id="phsmall"></div></div></div>
+    </div>
+  </section>
+
+  <div id="rightcol">
+    <section class="panel">
+      <div class="head">Design <span class="grow"></span><span class="count" id="sellabel"></span></div>
+      <div id="insp">
+        <p class="hint" id="inspempty" style="margin:0">Click anything to select it; drag to move, pull the corners to resize. Double-click text to type. Esc selects the box around it.</p>
+        <div id="inspbox" hidden>
+          <div class="irow"><button class="btn small" id="parentbtn">↑ Select the box around it</button><button class="btn small" id="replaceimg" hidden>Replace picture</button></div>
+          <div class="irow"><label>Fill</label><input type="color" id="fill"><button class="btn small" id="nofill">None</button><label>Opacity</label><input type="range" id="opacity" min="0" max="1" step="0.05"></div>
+          <div class="irow"><label>Corners</label><input type="number" id="radius" min="0" max="999"><label>Border</label><input type="number" id="bw" min="0" max="40"><input type="color" id="bc"></div>
+          <div class="irow"><label>W</label><input type="number" id="wbox" min="4"><label>H</label><input type="number" id="hbox" min="4"><button class="btn small" id="autoh" title="Let the height follow the content">Auto H</button></div>
+          <div class="irow" id="fitrow" hidden><label>Picture</label><select id="fit"><option value="cover">Fill the box</option><option value="contain">Show it whole</option></select></div>
+        </div>
+        <div id="inspslide" hidden>
+          <div class="lbl" id="slidelbl">This slide</div>
+          <div class="irow"><label>Background</label><input type="color" id="slidebg"><label>Name</label><input type="text" id="slidename" maxlength="60"></div>
+          <div id="notesbox"><div class="lbl">Speaker notes</div><textarea id="notes" placeholder="What to say on this slide (goes into PowerPoint's notes)"></textarea></div>
+        </div>
+      </div>
+    </section>
+    <section class="panel">
+      <div class="head">Ask Claude <span class="grow"></span><span class="count" id="aicount"></span></div>
+      <div id="feed" aria-live="polite"></div>
+      <div id="live" hidden>
+        <span class="orb"></span><span class="verb" id="verb">Thinking...</span><span id="doing"></span>
+        <span class="meter"><span class="in"><b id="tin">0</b> in</span><span class="out"><b id="tout">0</b> out</span><span class="time"><b id="clock">0:00</b></span></span>
+      </div>
+      <form class="composer" id="aiform">
+        <textarea id="aitext" placeholder="e.g. Turn slide 3 into a timeline · Add a slide about costs · Make it all green"></textarea>
+        <div class="row">
+          <select id="aiscope" title="What the change is about"></select>
+          <select id="aieffort" title="Effort"></select>
+          <button type="button" class="btn small" id="aiattach" title="Attach reference files">📎</button>
+          <input type="file" id="aifiles" multiple hidden>
+          <div class="chips grow" id="aichips"></div>
+          <button type="button" class="btn danger small" id="aistop" hidden>Stop</button>
+          <button type="submit" class="btn primary small" id="aisend">Send</button>
+        </div>
+      </form>
+    </section>
+  </div>
+</main>
+
+<!-- ======================================================= dialogs -->
+<dialog id="dldlg">
+  <form method="dialog" id="dlform">
+    <h3>Download</h3>
+    <div id="fmts"></div>
+    <label class="hint" for="pin">Download PIN</label>
+    <input type="password" id="pin" class="pinin" inputmode="numeric" autocomplete="off" maxlength="8">
+    <p class="err" id="dlerr"></p>
+    <div class="drow"><button type="button" class="link" id="changepin" hidden>Change PIN</button><span class="grow"></span><button type="button" class="btn" id="dlcancel">Cancel</button><button type="submit" class="btn primary" id="dlgo">Download</button></div>
+  </form>
+</dialog>
+
+<dialog id="pindlg">
+  <form method="dialog" id="pinform">
+    <h3 id="pintitle">Set the download PIN</h3>
+    <p class="hint" style="margin:0" id="pinsub">Every download asks for this PIN, on every PC. 4 to 8 digits.</p>
+    <div id="oldpinrow"><label class="hint" for="oldpin">Current PIN</label><input type="password" id="oldpin" class="pinin" inputmode="numeric" autocomplete="off" maxlength="8"></div>
+    <label class="hint" for="newpin">New PIN</label>
+    <input type="password" id="newpin" class="pinin" inputmode="numeric" autocomplete="off" maxlength="8">
+    <label class="hint" for="newpin2">New PIN again</label>
+    <input type="password" id="newpin2" class="pinin" inputmode="numeric" autocomplete="off" maxlength="8">
+    <p class="err" id="pinerr"></p>
+    <div class="drow"><span class="grow"></span><button type="button" class="btn" id="pincancel">Cancel</button><button type="submit" class="btn primary">Save PIN</button></div>
+  </form>
+</dialog>
+
+<dialog id="verdlg">
+  <form method="dialog">
+    <h3>Versions</h3>
+    <p class="hint" style="margin:0">Saved before every AI change and restore, and every 10 minutes of hand edits. Restoring keeps the current one as a version too.</p>
+    <div id="verlist"></div>
+    <div class="drow"><span class="grow"></span><button class="btn">Close</button></div>
+  </form>
+</dialog>
+
+<div id="toast" hidden></div>
+
+<script src="../creator/app.js"></script>
+</body>
+</html>
