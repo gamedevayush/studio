@@ -1747,6 +1747,6 @@ const connect = async () => {
 };
 $('#retry').onclick = connect;
 // Served by the helper itself (127.0.0.1): the button would only reopen this page.
-$('#openlocal').hidden = /^(127\.0\.0\.1|localhost)$/.test(location.hostname);
+if ($('#openlocal')) $('#openlocal').hidden = /^(127\.0\.0\.1|localhost)$/.test(location.hostname);
 $('#newview').hidden = true;
 connect();
