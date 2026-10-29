@@ -1,11 +1,12 @@
 'use strict';
 // PPT Creator and PDF Creator (tools/ppt-creator/, tools/pdf-creator/): one page for both.
-// Claude does the designing on the user's own PC, through the Studio helper
+// Ayush's Local LLM does the designing on the user's own PC, through the Studio helper
 // (%USERPROFILE%\tools\studio-helper, the "studio" command), which this page reaches at
 // 127.0.0.1:4455. The design is a fixed-size HTML file the helper keeps; it is shown in a
 // frame of this page (srcdoc, so it can be edited here) and saved back to the helper.
 const $ = (s, r = document) => r.querySelector(s);
 const KIND = /pdf-creator/.test(location.pathname) ? 'pdf' : 'ppt';
+const LLM = "Ayush's Local LLM";
 const API = new URLSearchParams(location.search).get('helper') || 'http://127.0.0.1:4455';
 const WORD = KIND === 'ppt' ? 'slide' : 'page';
 const WORDC = KIND === 'ppt' ? 'Slide' : 'Page';
@@ -142,7 +143,7 @@ $('#cname').textContent = KIND === 'ppt' ? 'PPT Creator' : 'PDF Creator';
 $(KIND === 'ppt' ? '#navppt' : '#navpdf').classList.add('on');
 $('#newhead').textContent = `New ${THING}`;
 $('#newtitle').innerHTML = `What should the <span>${THING}</span> be about?`;
-$('#newsub').textContent = `Claude designs it from scratch. Afterwards every ${WORD} is editable right here.`;
+$('#newsub').textContent = `${LLM} designs it from scratch. Afterwards every ${WORD} is editable right here.`;
 if (KIND === 'pdf') $('#prompt').placeholder = 'A topic, an outline, notes or the full content. e.g. "4-page parent handout on our new science lab: what it has, timings, safety rules"';
 $('#recenthead').textContent = KIND === 'ppt' ? 'Your presentations' : 'Your documents';
 $('#countlabel').textContent = KIND === 'ppt' ? 'Slides' : 'Pages';
@@ -263,7 +264,7 @@ const loadList = async () => {
   for (const d of docs) {
     const c = document.createElement('div');
     c.className = 'card';
-    c.innerHTML = `<div class="grow"><div class="t">${esc(d.title)}</div><div class="m">${d.status === 'working' ? '<span class="live">Claude is working · </span>' : ''}${d.count} ${WORD}${d.count === 1 ? '' : 's'} · ${when(d.updated)}</div></div><button class="x" title="Delete">✕</button>`;
+    c.innerHTML = `<div class="grow"><div class="t">${esc(d.title)}</div><div class="m">${d.status === 'working' ? '<span class="live">The LLM is working · </span>' : ''}${d.count} ${WORD}${d.count === 1 ? '' : 's'} · ${when(d.updated)}</div></div><button class="x" title="Delete">✕</button>`;
     c.onclick = (e) => {
       if (e.target.closest('.x')) return;
       openDoc(d.id);
@@ -384,7 +385,7 @@ const showPlaceholder = () => {
   $('#placeholder').hidden = false;
   $('#canvas').style.height = '0px';
   $('#phbig').textContent = busyAI ? `Designing your ${THING}…` : 'Nothing here yet';
-  $('#phsmall').textContent = busyAI ? `The ${WORD}s appear here as soon as Claude writes them. Watch the progress on the right.` : 'Ask Claude on the right to make it.';
+  $('#phsmall').textContent = busyAI ? `The ${WORD}s appear here as soon as the LLM writes them. Watch the progress on the right.` : 'Ask the LLM on the right to make it.';
 };
 
 // ---------------------------------------------------------------- feed and live status
@@ -396,7 +397,7 @@ const addFeed = (ev) => {
     return;
   }
   const div = document.createElement('div');
-  const cls = {user: 'user', claude: 'claude', error: 'note error', ready: 'note ready'}[ev.kind] ?? 'note';
+  const cls = {user: 'user', ai: 'ai', error: 'note error', ready: 'note ready'}[ev.kind] ?? 'note';
   div.className = `msg ${cls}`;
   div.textContent = ev.text.replace(/\*\*(.+?)\*\*/g, '$1');
   const feed = $('#feed');
@@ -437,11 +438,11 @@ const drawLive = () => {
   $('#tout').textContent = compact(live.tokens?.out ?? 0);
   const s = Math.max(0, Math.floor((t - (live.startedAt ?? t)) / 1000));
   $('#clock').textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-  $('#busytext').textContent = `${live.label ?? 'Claude is working'}… ${lastActivity ? `(${lastActivity}) ` : ''}Editing is back when it is done.`;
+  $('#busytext').textContent = `${live.label ?? 'The LLM is working'}… ${lastActivity ? `(${lastActivity}) ` : ''}Editing is back when it is done.`;
 };
 setInterval(drawLive, 500);
 
-// ---------------------------------------------------------------- Ask Claude
+// ---------------------------------------------------------------- Ask the LLM
 
 const aiRefs = fileChips($('#aichips'));
 $('#aieffort').innerHTML = EFFORTS.map(([v, l]) => `<option value="${v}"${v === 'medium' ? ' selected' : ''}>Effort: ${l}</option>`).join('');
@@ -634,7 +635,7 @@ const layoutFrame = () => {
 $('#zoom').onchange = layoutFrame;
 new ResizeObserver(() => $('#zoom').value === 'fit' && layoutFrame()).observe(wrap);
 
-// Which slide is in view, for the slide list and "Ask Claude".
+// Which slide is in view, for the slide list and "Ask the LLM".
 wrap.addEventListener('scroll', () => {
   if (!fdoc || (selected && slideOf(selected))) return;
   const mid = (wrap.scrollTop + wrap.clientHeight / 2) / zoom;
@@ -1599,7 +1600,7 @@ $('#versions').onclick = async () => {
     row.className = 'ver';
     row.innerHTML = `<span>${when(v.at)}</span><span class="why grow">${esc(v.why)}</span><button type="button" class="btn small">Restore</button>`;
     row.querySelector('button').onclick = async () => {
-      if (busyAI) return toast('Wait for Claude to finish.');
+      if (busyAI) return toast('Wait for the LLM to finish.');
       if (!confirm(`Go back to the version from ${when(v.at)}? The current one is kept as a version.`)) return;
       try {
         const r = await api(`/api/docs/${current}/restore`, {name: v.name});
@@ -1720,7 +1721,7 @@ const connect = async () => {
     const res = await fetch(`${API}/api/hello`, {cache: 'no-store'});
     if (!res.ok) throw new Error();
     const hello = await res.json();
-    if (!hello.claude) toast('The helper is running, but Claude Code was not found on this PC.', true);
+    if (!hello.model) toast('The helper is running, but the local LLM is not set up on this PC.', true);
   } catch {
     $('#connect').hidden = false;
     $('#newview').hidden = $('#editview').hidden = true;
