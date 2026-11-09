@@ -1,0 +1,1065 @@
+<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Photo Enhancer · Ayush AI</title><meta name="description" content="Enhance many photos at once: light, colour, clarity and sharpness fixed in one click, then download them all. Free, runs in your browser. Optional Gemini (Nano Banana) AI mode."><meta name="theme-color" content="#07060d"><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop stop-color='%23a78bfa'/%3E%3Cstop offset='1' stop-color='%23f472b6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='url(%23g)'/%3E%3Cpath d='M14 6.5l2.1 6.2 6.2 2.1-6.2 2.1L14 23.1l-2.1-6.2-6.2-2.1 6.2-2.1z' fill='white'/%3E%3Cpath d='M23.5 5l.9 2.5 2.5.9-2.5.9-.9 2.5-.9-2.5-2.5-.9 2.5-.9z' fill='white'/%3E%3C/svg%3E"><link rel="apple-touch-icon" href="icon-180.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Enhancer"><meta name="apple-mobile-web-app-status-bar-style" content="black"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet"><script>self!==top&&document.documentElement.classList.add("embed")</script><link rel="stylesheet" href="../../assets/style.css">
+<style>
+[hidden]{display:none!important}
+img{max-width:100%}
+.narrow{max-width:980px;margin:0 auto}
+body.has-dock .wrap{padding-bottom:150px}
+
+/* mode cards */
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.mode{appearance:none;text-align:left;cursor:pointer;color:var(--ink);font:inherit;padding:14px 16px;border-radius:16px;background:rgba(0,0,0,.22);border:1px solid var(--edge);transition:.2s}
+.mode b{display:flex;align-items:center;gap:8px;font:600 15.5px "Space Grotesk",Inter,sans-serif}
+.mode b svg{width:18px;height:18px;color:var(--pink)}
+.mode small{display:block;color:var(--muted);font-size:12.5px;margin-top:3px}
+.mode:hover{border-color:var(--edge-bright)}
+.mode.on{background:var(--glass-strong);border-color:transparent;box-shadow:0 0 0 1.5px var(--pink),0 10px 30px -12px rgba(236,72,153,.55)}
+html.embed .mode.on{box-shadow:0 0 0 1.5px var(--pink),0 10px 30px -12px rgba(34,211,238,.45)}
+.opts{display:grid;gap:14px;margin-top:18px}
+.lbl{display:block;font-size:13px;color:var(--muted);margin-bottom:8px}
+.note{margin:0;color:var(--faint);font-size:13px}
+.form{display:grid;gap:12px}
+.form label{display:grid;gap:6px;font-size:13px;color:var(--muted)}
+.form .row{display:grid;grid-template-columns:1fr 160px;gap:12px;align-items:end}
+@media (max-width:560px){.form .row{grid-template-columns:1fr}}
+.in,.form textarea{width:100%;min-height:0;color:var(--ink);font:500 14px Inter,sans-serif;padding:10px 12px;border-radius:12px;border:1px solid var(--edge);background:rgba(0,0,0,.25);outline:0;resize:vertical}
+.in:focus,.form textarea:focus{border-color:rgba(139,92,246,.7);box-shadow:0 0 0 4px rgba(139,92,246,.15)}
+.in::placeholder,.form textarea::placeholder{color:var(--faint)}
+.form select{width:100%}
+.chk{display:inline-flex !important;grid-template-columns:none;align-items:center;gap:9px;font-size:14px !important;color:var(--ink) !important;cursor:pointer;user-select:none}
+.chk input{accent-color:var(--pink);width:16px;height:16px;margin:0}
+.cost{margin:0;font-size:13.5px;color:#c4b5fd}
+html.embed .cost{color:#7dd3fc}
+details.help{border:1px solid var(--edge);border-radius:14px;padding:12px 14px;background:rgba(0,0,0,.18);font-size:14px}
+details.help summary{cursor:pointer;color:var(--ink);font-weight:600}
+details.help ol{margin:10px 0 6px;padding-left:20px;display:grid;gap:6px;color:var(--muted)}
+details.help a{color:#c4b5fd;text-decoration:underline}
+html.embed details.help a{color:#7dd3fc}
+details.help code{background:rgba(0,0,0,.35);padding:1px 6px;border-radius:6px;font:12.5px "JetBrains Mono",ui-monospace,Consolas,monospace}
+.sep{height:1px;background:var(--edge);margin:18px 0 14px}
+
+/* drop zone (uses the shared .drop look) */
+.drop{display:block;margin-top:18px}
+.drop span{font-size:13.5px}
+.drop.compact{padding:18px}
+.drop.compact svg{display:none}
+
+/* photo grid */
+.pgrid{margin-top:18px;display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
+.pcard{border-radius:16px;overflow:hidden;background:var(--glass);border:1px solid var(--edge);display:flex;flex-direction:column}
+.pcard.error{border-color:rgba(251,113,133,.45)}
+.pfoot{display:flex;align-items:center;gap:6px;padding:7px 8px 7px 11px;min-width:0}
+.pfoot .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;color:var(--muted)}
+.badge{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.07);color:var(--muted);white-space:nowrap}
+.badge.done{background:rgba(74,222,128,.14);color:var(--ok)}
+.badge.error{background:rgba(251,113,133,.15);color:var(--err)}
+.badge.working{background:rgba(236,72,153,.16);color:#f9a8d4}
+html.embed .badge.working{background:rgba(34,211,238,.14);color:#67e8f9}
+.ib{appearance:none;border:0;background:none;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;cursor:pointer;color:var(--muted);flex:none;padding:0}
+.ib svg{width:16px;height:16px}
+.ib:hover:not(:disabled){background:var(--glass-strong);color:var(--ink)}
+.ib:disabled{opacity:.3;cursor:default}
+
+/* before / after compare */
+.cmp{position:relative;overflow:hidden;background:rgba(0,0,0,.45);touch-action:pan-y;cursor:ew-resize;--x:50%;user-select:none;-webkit-user-select:none}
+.pcard .cmp{aspect-ratio:1}
+.cmp img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;-webkit-user-drag:none}
+.cmp .after{clip-path:inset(0 0 0 var(--x))}
+.cmp .handle{position:absolute;top:0;bottom:0;left:var(--x);width:2px;margin-left:-1px;background:#fff;box-shadow:0 0 8px rgba(0,0,0,.6);pointer-events:none}
+.cmp .handle::after{content:"";position:absolute;top:50%;left:50%;width:26px;height:26px;transform:translate(-50%,-50%);border-radius:50%;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23222' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 7l-5 5 5 5M15 7l5 5-5 5'/%3E%3C/svg%3E") center/16px no-repeat;box-shadow:0 2px 10px rgba(0,0,0,.5)}
+.cmp .tag{position:absolute;top:8px;font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:99px;background:rgba(0,0,0,.6);color:#fff;pointer-events:none}
+.cmp .tl{left:8px}.cmp .tr{right:8px}
+.cmp:not(.has-after) .after,.cmp:not(.has-after) .handle,.cmp:not(.has-after) .tag{display:none}
+.cmp .state{position:absolute;inset:0;display:none;place-items:center;align-content:center;gap:8px;background:rgba(7,6,13,.62);font-size:13px;text-align:center;padding:10px;pointer-events:none}
+.pcard.queued .state,.pcard.working .state,.pcard.prep .state,.pcard.error .state{display:grid}
+.pcard.error .state{background:rgba(60,10,20,.75);color:#fecdd3;font-size:12px}
+.spin{width:26px;height:26px;border-radius:50%;border:3px solid rgba(255,255,255,.18);border-top-color:var(--pink);animation:spin .8s linear infinite;margin:0 auto}
+.pcard.queued .spin{animation:none;border-top-color:rgba(255,255,255,.45)}
+.pcard.error .spin{display:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* bottom dock */
+.dock{position:fixed;left:0;right:0;bottom:0;z-index:40;padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));background:rgba(7,6,13,.82);backdrop-filter:blur(18px) saturate(150%);-webkit-backdrop-filter:blur(18px) saturate(150%);border-top:1px solid var(--edge)}
+html.embed .dock{background:rgba(6,10,16,.88)}
+.dock-in{max-width:1160px;margin:0 auto;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.dock-info{flex:1 1 220px;min-width:0}
+.dock-info strong{font:600 15px "Space Grotesk",Inter,sans-serif}
+.dock-info span{color:var(--muted);font-size:13px;margin-left:8px}
+.dock .bar{margin-top:8px}
+.dock-actions{display:flex;gap:8px;flex-wrap:wrap}
+.dock .btn{padding:11px 15px;white-space:nowrap}
+.btn.stop{background:rgba(251,113,133,.16);border-color:rgba(251,113,133,.45);color:#fecdd3}
+
+/* lightbox */
+.lb{position:fixed;inset:0;z-index:60;background:rgba(5,4,10,.95);display:grid;grid-template-rows:1fr auto;padding:16px}
+.lb-stage{display:grid;place-items:center;min-height:0}
+.lb .cmp{border-radius:10px}
+.lb .cmp img{object-fit:contain}
+.lb-cap{display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;padding-top:12px;color:var(--muted);font-size:13.5px}
+.lb-cap b{color:var(--ink);font-weight:600;max-width:60vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lb-x,.lb-nav{position:absolute;z-index:2;border:0;background:rgba(255,255,255,.1);color:#fff;border-radius:50%;width:44px;height:44px;display:grid;place-items:center;cursor:pointer}
+.lb-x svg,.lb-nav svg{width:20px;height:20px}
+.lb-x{top:calc(14px + env(safe-area-inset-top,0px));right:14px}
+.lb-nav{top:50%;transform:translateY(-50%)}
+.lb-prev{left:14px}.lb-next{right:14px}
+.lb-x:hover,.lb-nav:hover{background:rgba(255,255,255,.2)}
+
+.toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);z-index:70;background:#1c1828;border:1px solid var(--edge-bright);padding:10px 16px;border-radius:12px;font-size:14px;max-width:calc(100% - 32px);box-shadow:0 12px 40px rgba(0,0,0,.6)}
+html.embed .toast{background:#0d1622}
+
+@media (max-width:560px){
+  .modes{grid-template-columns:1fr}
+  body.has-dock .wrap{padding-bottom:220px}
+  .dock-actions{width:100%}
+  .dock-actions .btn{flex:1 1 auto;padding:11px 10px}
+  .lb-nav{display:none}
+  .toast{bottom:190px}
+}
+</style></head><body><div class="aurora"><i></i><i></i><i></i></div><div class="grain"></div><div class="wrap"><nav class="nav glass"><a class="brand" href="../../"><span class="logo"><svg viewBox="0 0 16 16"><path d="M8 1l6 7-6 7-6-7z" fill="#fff"/></svg></span>Ayush AI</a><div class="nav-links"><a href="../../#tools">Tools</a> <a href="https://gamedevayush.github.io/aboutme/" target="_blank" rel="noopener">About</a></div></nav>
+<header class="page-head"><span class="pill"><span class="dot"></span>Free · runs on your device</span><h1>Photo <span class="grad-text">Enhancer</span></h1><p>Pick many photos at once. Light, colour and sharpness get fixed in one go, then save them all.</p></header>
+
+<div class="narrow">
+  <div class="panel glass" id="settings">
+    <div class="modes">
+      <button class="mode" type="button" data-mode="quick"><b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>Quick Enhance</b><small>Free · works offline · keeps original size · unlimited</small></button>
+      <button class="mode" type="button" data-mode="ai"><b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.2 6.8L21 12l-6.8 2.2L12 21l-2.2-6.8L3 12l6.8-2.2z"/></svg>AI Enhance</b><small>Gemini Nano Banana · rebuilds fine detail · your API key</small></button>
+    </div>
+
+    <div class="opts" id="quick-opts">
+      <div>
+        <span class="lbl">Strength</span>
+        <span class="seg" id="strength">
+          <label><input type="radio" name="strength" value="0.6"><span>Light</span></label>
+          <label><input type="radio" name="strength" value="1"><span>Natural</span></label>
+          <label><input type="radio" name="strength" value="1.5"><span>Strong</span></label>
+        </span>
+      </div>
+      <p class="note">Fixes exposure, colour cast, shadows, clarity, sharpness and colour vibrance. Photos are processed on your device and never uploaded.</p>
+    </div>
+
+    <div class="opts form" id="ai-opts" hidden>
+      <div class="row">
+        <label>Gemini API key<input class="in" type="password" id="api-key" placeholder="AIza…" autocomplete="off" spellcheck="false"></label>
+        <label class="chk" style="padding-bottom:10px"><input type="checkbox" id="remember-key"> Remember on this device</label>
+      </div>
+      <div class="row">
+        <label>Model
+          <select id="model">
+            <option value="gemini-nano-banana-2.1">Nano Banana 2.1 · cheap + fast (recommended)</option>
+            <option value="gemini-3-pro-image">Nano Banana Pro · best quality, costs more</option>
+            <option value="gemini-2.5-flash-image">Nano Banana 2.5 Flash · older, ~1K only</option>
+            <option value="custom">Custom model ID…</option>
+          </select>
+        </label>
+        <label>Output size
+          <select id="size">
+            <option value="1K">1K (~1024 px)</option>
+            <option value="2K">2K (~2048 px)</option>
+            <option value="4K">4K (~4096 px)</option>
+          </select>
+        </label>
+      </div>
+      <label id="custom-wrap" hidden>Custom model ID<input class="in" type="text" id="custom-model" placeholder="e.g. gemini-3-pro-image" spellcheck="false"></label>
+      <label>Extra instruction (optional)<textarea id="extra" rows="2" placeholder="e.g. make the sky a little bluer, or remove scratches from this old photo"></textarea></label>
+      <p class="cost" id="cost"></p>
+      <details class="help">
+        <summary>How do I get a Gemini API key?</summary>
+        <ol>
+          <li>Open <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> and press <b>Create API key</b>. Gemini's image models are paid per image (no free tier), so the key's project needs billing turned on. Google may ask for a small prepay the first time.</li>
+          <li>Have <b>Google AI Pro</b>? It includes $10 of Google Cloud credit every month. Apply it to your billing account at <a href="https://developers.google.com/program/my-benefits" target="_blank" rel="noopener">developers.google.com/program/my-benefits</a> and AI Studio spends that credit first.</li>
+          <li>Paste the key (<code>AIza…</code>) above.</li>
+        </ol>
+        <p class="note">Your key is kept only in this browser and is sent only to Google. It is never stored on this site.</p>
+      </details>
+      <p class="note">AI results come out at the size picked above, while Quick keeps the original size. AI can change small details, so check each before/after.</p>
+    </div>
+
+    <div class="sep"></div>
+    <label class="chk" id="autodl-row"><input type="checkbox" id="auto-dl"> Download automatically when done (1 photo = JPG, more = ZIP)</label>
+    <p class="note" id="share-note" hidden>On a phone: when the photos are done, tap <b>Save to Photos</b> below, then choose <b>Save Images</b>. They go straight to your gallery.</p>
+  </div>
+
+  <label class="drop" id="drop">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg>
+    <strong>Choose photos or drop them here</strong>
+    <span>As many as you like · JPG, PNG, WebP, HEIC · paste with Ctrl+V</span>
+    <input type="file" id="file-input" accept="image/*,.heic,.heif" multiple hidden>
+  </label>
+
+  <section class="pgrid" id="grid"></section>
+</div>
+<footer><span>© Ayush AI</span> <a href="https://gamedevayush.github.io/aboutme/" target="_blank" rel="noopener">Made by Ayush ↗</a></footer>
+</div>
+
+<div class="dock" id="dock" hidden>
+  <div class="dock-in">
+    <div class="dock-info">
+      <strong id="dock-count"></strong><span id="dock-status"></span>
+      <div class="bar"><i id="progress"></i></div>
+    </div>
+    <div class="dock-actions">
+      <button class="btn" type="button" id="btn-clear">Clear</button>
+      <button class="btn" type="button" id="btn-each" title="Save every photo as its own file">One by one</button>
+      <button class="btn" type="button" id="btn-folder" hidden title="Write all photos into a folder">Save to folder</button>
+      <button class="btn" type="button" id="btn-share" hidden>Save to Photos</button>
+      <button class="btn" type="button" id="btn-zip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg> ZIP</button>
+      <button class="btn primary" type="button" id="btn-run">Enhance</button>
+    </div>
+  </div>
+</div>
+
+<div class="lb" id="lb" hidden>
+  <button class="lb-x" type="button" id="lb-x" title="Close (Esc)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  <button class="lb-nav lb-prev" type="button" id="lb-prev" title="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+  <button class="lb-nav lb-next" type="button" id="lb-next" title="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg></button>
+  <div class="lb-stage">
+    <div class="cmp" id="lb-cmp">
+      <img class="before" alt=""><img class="after" alt="">
+      <div class="handle"></div><span class="tag tl">Before</span><span class="tag tr">After</span>
+    </div>
+  </div>
+  <div class="lb-cap"><b id="lb-name"></b><span id="lb-dims"></span><button class="btn" type="button" id="lb-dl">Download</button></div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<!-- Quick-enhance maths, run in a Web Worker (falls back to the page if Workers are unavailable) -->
+<script type="text/js-worker" id="worker-src">
+"use strict";
+function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+
+// Box blur: horizontal src -> tmp, vertical tmp -> dst. dst may be the same array as src.
+function boxBlur(src, dst, tmp, w, h, r) {
+  const inv = 1 / (2 * r + 1), wm = w - 1, hm = h - 1;
+  for (let y = 0; y < h; y++) {
+    const row = y * w;
+    let acc = 0;
+    for (let k = -r; k <= r; k++) acc += src[row + (k < 0 ? 0 : k > wm ? wm : k)];
+    for (let x = 0; x < w; x++) {
+      tmp[row + x] = acc * inv;
+      const xa = x + r + 1, xr = x - r;
+      acc += src[row + (xa > wm ? wm : xa)] - src[row + (xr < 0 ? 0 : xr)];
+    }
+  }
+  const acc = new Float64Array(w);
+  for (let k = -r; k <= r; k++) {
+    const rr = (k < 0 ? 0 : k > hm ? hm : k) * w;
+    for (let x = 0; x < w; x++) acc[x] += tmp[rr + x];
+  }
+  for (let y = 0; y < h; y++) {
+    const out = y * w;
+    const ya = (y + r + 1 > hm ? hm : y + r + 1) * w, yr = (y - r < 0 ? 0 : y - r) * w;
+    for (let x = 0; x < w; x++) {
+      dst[out + x] = acc[x] * inv;
+      acc[x] += tmp[ya + x] - tmp[yr + x];
+    }
+  }
+}
+
+function enhance(d, w, h, s) {
+  const n = w * h;
+
+  // 1) Histograms -> auto levels + partial auto white balance
+  const hr = new Float64Array(256), hg = new Float64Array(256), hb = new Float64Array(256), hy = new Float64Array(256);
+  const step = n > 3e6 ? 4 : 1;
+  let cnt = 0;
+  for (let p = 0; p < n; p += step) {
+    const i = p << 2, r = d[i], g = d[i + 1], b = d[i + 2];
+    hr[r]++; hg[g]++; hb[b]++; hy[(r * 77 + g * 150 + b * 29 + 128) >> 8]++; cnt++;
+  }
+  const pct = (H, q) => { const t = q * cnt; let a = 0; for (let v = 0; v < 256; v++) { a += H[v]; if (a >= t) return v; } return 255; };
+  const LQ = 0.005, HQ = 0.995;
+  const yLo = pct(hy, LQ), yHi = pct(hy, HQ);
+  const wb = clamp(0.3 + 0.3 * s, 0, 0.75);   // how much per-channel (colour cast) correction
+  const amt = clamp(0.6 + 0.35 * s, 0, 1);    // how much of the levels stretch to apply
+  const bounds = (H) => {
+    let lo = yLo + clamp(pct(H, LQ) - yLo, -30, 30) * wb;
+    let hi = yHi + clamp(pct(H, HQ) - yHi, -45, 45) * wb;
+    lo = Math.min(lo, 90); hi = Math.max(hi, 135);
+    if (hi - lo < 80) { const m = (hi + lo) / 2; lo = m - 40; hi = m + 40; }
+    return [lo, hi];
+  };
+
+  // 2) Midtone gamma from the mean brightness after levels
+  let mean = 0;
+  for (let v = 0; v < 256; v++) {
+    let t = clamp((v - yLo) / Math.max(1, yHi - yLo), 0, 1);
+    mean += hy[v] * (v / 255 + (t - v / 255) * amt);
+  }
+  mean /= cnt;
+  let g = 1;
+  if (mean < 0.45) g = clamp(Math.log(0.45) / Math.log(Math.max(mean, 0.02)), 0.55, 1);
+  else if (mean > 0.62) g = clamp(Math.log(0.6) / Math.log(mean), 1, 1.2);
+  g = 1 + (g - 1) * clamp(0.5 + 0.3 * s, 0, 1);
+  const c = 0.16 * s; // gentle S-curve contrast
+
+  const makeLut = ([lo, hi]) => {
+    const L = new Uint8ClampedArray(256);
+    for (let v = 0; v < 256; v++) {
+      let t = clamp((v - lo) / (hi - lo), 0, 1);
+      t = v / 255 + (t - v / 255) * amt;
+      t = Math.pow(t, g);
+      t = t - c * t * (1 - t) * (1 - 2 * t);
+      L[v] = Math.round(t * 255);
+    }
+    return L;
+  };
+  const Lr = makeLut(bounds(hr)), Lg = makeLut(bounds(hg)), Lb = makeLut(bounds(hb));
+
+  const Y = new Float32Array(n);
+  for (let p = 0, i = 0; p < n; p++, i += 4) {
+    const r = Lr[d[i]], gg = Lg[d[i + 1]], b = Lb[d[i + 2]];
+    d[i] = r; d[i + 1] = gg; d[i + 2] = b;
+    Y[p] = (0.299 * r + 0.587 * gg + 0.114 * b) * (1 / 255);
+  }
+
+  // 3) Large-radius "base" luminance on a small grid (for clarity + shadows/highlights)
+  const long = Math.max(w, h);
+  const f = Math.max(1, Math.round(long / 384));
+  const sw = Math.ceil(w / f), sh = Math.ceil(h / f);
+  const sm = new Float32Array(sw * sh), sc = new Float32Array(sw * sh), st = new Float32Array(sw * sh);
+  const colIdx = new Int32Array(w);
+  for (let x = 0; x < w; x++) colIdx[x] = (x / f) | 0;
+  for (let y = 0; y < h; y++) {
+    const srow = ((y / f) | 0) * sw, row = y * w;
+    for (let x = 0; x < w; x++) { const k = srow + colIdx[x]; sm[k] += Y[row + x]; sc[k]++; }
+  }
+  for (let k = 0; k < sm.length; k++) sm[k] /= sc[k] || 1;
+  const R = Math.max(2, Math.round(Math.max(sw, sh) * 0.022));
+  boxBlur(sm, sm, st, sw, sh, R); boxBlur(sm, sm, st, sw, sh, R); boxBlur(sm, sm, st, sw, sh, R);
+
+  const x0 = new Int32Array(w), x1 = new Int32Array(w), fx = new Float32Array(w);
+  for (let x = 0; x < w; x++) { const v = clamp((x + 0.5) / f - 0.5, 0, sw - 1); x0[x] = v | 0; x1[x] = Math.min(x0[x] + 1, sw - 1); fx[x] = v - x0[x]; }
+  const y0 = new Int32Array(h), y1 = new Int32Array(h), fy = new Float32Array(h);
+  for (let y = 0; y < h; y++) { const v = clamp((y + 0.5) / f - 0.5, 0, sh - 1); y0[y] = v | 0; y1[y] = Math.min(y0[y] + 1, sh - 1); fy[y] = v - y0[y]; }
+
+  // 4) Small-radius blur for sharpening
+  const rs = Math.max(1, Math.round(long / 2600));
+  const S1 = new Float32Array(n), T = new Float32Array(n);
+  boxBlur(Y, S1, T, w, h, rs); boxBlur(S1, S1, T, w, h, rs);
+
+  // 5) Per-pixel: clarity, shadow lift, highlight protect, sharpen, vibrance
+  const clar = 0.24 * s, shd = 0.28 * s, hil = 0.2 * s, shp = 0.35 + 0.4 * s, thr = 0.01, vib = 0.25 * s;
+  for (let y = 0; y < h; y++) {
+    const r0 = y0[y] * sw, r1 = y1[y] * sw, fyy = fy[y], row = y * w;
+    for (let x = 0; x < w; x++) {
+      const p = row + x, i = p << 2;
+      const a0 = sm[r0 + x0[x]], a1 = sm[r0 + x1[x]], b0 = sm[r1 + x0[x]], b1 = sm[r1 + x1[x]];
+      const top = a0 + (a1 - a0) * fx[x], bot = b0 + (b1 - b0) * fx[x];
+      const base = top + (bot - top) * fyy;
+      const yv = Y[p];
+      let yn = yv + clar * (yv - base) * (0.35 + 2.6 * yv * (1 - yv));
+      const bm = (base + yv) * 0.5; // half local, half own brightness -> fewer halos
+      if (bm < 0.5) { const sd = (0.5 - bm) * 2; yn += shd * sd * sd * (1 - yn) * 0.6; }
+      if (bm > 0.65) { const hd = (bm - 0.65) / 0.35, y2 = yv * yv, y4 = y2 * y2; yn -= hil * hd * hd * yn * 0.22 * (1 - y4 * y4); }
+      let df = yv - S1[p];
+      const ad = df < 0 ? -df : df;
+      if (ad < thr) df *= ad / thr;
+      yn += shp * df;
+      const dl = (yn - yv) * 255;
+      const r = d[i] + dl, gg = d[i + 1] + dl, b = d[i + 2] + dl;
+      const mx = r > gg ? (r > b ? r : b) : (gg > b ? gg : b);
+      const mn = r < gg ? (r < b ? r : b) : (gg < b ? gg : b);
+      const sat = clamp((mx - mn) / 255, 0, 1);
+      let v = vib * (1 - sat);
+      if (r > gg && gg > b) v *= 0.5; // go easy on warm / skin tones
+      const lum = 0.299 * r + 0.587 * gg + 0.114 * b, k = 1 + v;
+      d[i] = lum + (r - lum) * k; d[i + 1] = lum + (gg - lum) * k; d[i + 2] = lum + (b - lum) * k;
+    }
+  }
+}
+
+// Only the pixel maths runs here; decoding/encoding happens on the page
+// (keeps EXIF rotation right on every browser, incl. iPhone Safari).
+if (typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope) {
+  self.onmessage = (e) => {
+    const { job, buf, w, h, strength } = e.data;
+    try {
+      enhance(new Uint8ClampedArray(buf), w, h, strength);
+      self.postMessage({ job, ok: true, buf }, [buf]);
+    } catch (err) {
+      self.postMessage({ job, ok: false, error: String((err && err.message) || err) });
+    }
+  };
+}
+</script>
+
+<script>
+"use strict";
+const $ = (s, r = document) => r.querySelector(s);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("enhance." + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("enhance." + k, JSON.stringify(v)); } catch {} },
+  del(k) { try { localStorage.removeItem("enhance." + k); } catch {} },
+};
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Phones: smaller working size (Safari memory limits), one photo at a time, and save via the share sheet
+const IS_TOUCH = matchMedia("(pointer: coarse)").matches;
+const CAN_SHARE_FILES = (() => {
+  try { return !!(navigator.canShare && navigator.canShare({ files: [new File([new Uint8Array(1)], "t.jpg", { type: "image/jpeg" })] })); } catch { return false; }
+})();
+const SHARE_MODE = IS_TOUCH && CAN_SHARE_FILES;
+const MAX_SIDE = IS_TOUCH ? 4096 : 12000;
+
+// Approximate Gemini API prices per output image (USD), Nov 2026
+const PRICES = {
+  "gemini-nano-banana-2.1": { "1K": 0.0336, "2K": 0.0504, "4K": 0.113 },
+  "gemini-3-pro-image": { "1K": 0.134, "2K": 0.134, "4K": 0.24 },
+  "gemini-2.5-flash-image": { "1K": 0.039, "2K": 0.039, "4K": 0.039 },
+};
+
+const S = { mode: store.get("mode", "quick"), strength: store.get("strength", 1), items: [], slots: [], stop: false, lbIndex: -1 };
+let uid = 0;
+
+const ICON_DL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>';
+const ICON_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+
+/* ---------------- settings UI ---------------- */
+const el = {
+  grid: $("#grid"), dock: $("#dock"), drop: $("#drop"), input: $("#file-input"),
+  run: $("#btn-run"), zip: $("#btn-zip"), each: $("#btn-each"), folder: $("#btn-folder"), clear: $("#btn-clear"), share: $("#btn-share"),
+  count: $("#dock-count"), status: $("#dock-status"), progress: $("#progress"),
+  key: $("#api-key"), remember: $("#remember-key"), model: $("#model"), size: $("#size"),
+  custom: $("#custom-model"), customWrap: $("#custom-wrap"), extra: $("#extra"), cost: $("#cost"), autoDl: $("#auto-dl"),
+};
+
+function setMode(m) {
+  S.mode = m; store.set("mode", m);
+  document.querySelectorAll(".mode").forEach((b) => b.classList.toggle("on", b.dataset.mode === m));
+  $("#quick-opts").hidden = m !== "quick";
+  $("#ai-opts").hidden = m !== "ai";
+  refreshDock();
+}
+document.querySelectorAll(".mode").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
+
+function setStrength(v) {
+  S.strength = v; store.set("strength", v);
+  document.querySelectorAll('input[name="strength"]').forEach((r) => (r.checked = Number(r.value) === v));
+}
+document.querySelectorAll('input[name="strength"]').forEach((r) => r.addEventListener("change", () => setStrength(Number(r.value))));
+
+el.remember.checked = store.get("remember", true);
+el.key.value = el.remember.checked ? store.get("key", "") : "";
+el.key.addEventListener("input", () => { if (el.remember.checked) store.set("key", el.key.value.trim()); });
+el.remember.addEventListener("change", () => {
+  store.set("remember", el.remember.checked);
+  if (el.remember.checked) store.set("key", el.key.value.trim()); else store.del("key");
+});
+el.model.value = store.get("model", "gemini-nano-banana-2.1");
+if (!el.model.value) el.model.value = "gemini-nano-banana-2.1";
+el.size.value = store.get("size", "2K");
+if (!el.size.value) el.size.value = "2K";
+el.custom.value = store.get("customModel", "");
+el.extra.value = store.get("extra", "");
+el.autoDl.checked = store.get("autoDl", true);
+const syncAi = () => {
+  store.set("model", el.model.value); store.set("size", el.size.value);
+  store.set("customModel", el.custom.value.trim()); store.set("extra", el.extra.value);
+  el.customWrap.hidden = el.model.value !== "custom";
+  el.size.disabled = getModel() === "gemini-2.5-flash-image";
+  updateCost();
+};
+[el.model, el.size, el.custom, el.extra].forEach((x) => x.addEventListener("input", syncAi));
+el.autoDl.addEventListener("change", () => store.set("autoDl", el.autoDl.checked));
+
+function getModel() { return el.model.value === "custom" ? (el.custom.value.trim() || "gemini-nano-banana-2.1") : el.model.value; }
+
+function updateCost() {
+  const p = PRICES[getModel()];
+  if (!p) { el.cost.textContent = "Custom model: check Google's Gemini API pricing page for the cost."; return; }
+  const per = p[el.size.value] || p["1K"];
+  const n = S.items.length;
+  el.cost.textContent = `≈ $${per.toFixed(3)} per photo` + (n ? ` · ${n} photo${n > 1 ? "s" : ""} ≈ $${(per * n).toFixed(2)}` : "") +
+    ` · Google AI Pro's $10/month credit ≈ ${Math.floor(10 / per)} photos (approx.)`;
+}
+
+/* ---------------- adding photos ---------------- */
+const isImage = (f) => (f.type && f.type.startsWith("image/")) || /\.(heic|heif|jpe?g|png|webp|avif|bmp|gif|tiff?)$/i.test(f.name || "");
+const isHeic = (f) => /heic|heif/i.test(f.type) || /\.(heic|heif)$/i.test(f.name || "");
+
+let heicLib = null;
+function loadHeic() {
+  return heicLib || (heicLib = new Promise((res, rej) => {
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js";
+    s.onload = () => res(window.heic2any);
+    s.onerror = () => { heicLib = null; rej(new Error("Couldn't load the HEIC converter (needs internet)")); };
+    document.head.appendChild(s);
+  }));
+}
+async function toDecodable(file) {
+  if (!isHeic(file)) return file;
+  try { const b = await createImageBitmap(file); b.close(); return file; } catch {}
+  const conv = await loadHeic();
+  const out = await conv({ blob: file, toType: "image/jpeg", quality: 0.95 });
+  return Array.isArray(out) ? out[0] : out;
+}
+
+function addFiles(list) {
+  const files = [...list].filter(isImage);
+  if (!files.length) { toast("No photos found in that selection"); return; }
+  for (const f of files) {
+    const it = { id: ++uid, file: f, name: f.name || `photo_${uid}.jpg`, src: f, status: "prep", origURL: null, out: null, outURL: null, err: null, w: 0, h: 0 };
+    S.items.push(it);
+    el.grid.appendChild(makeCard(it));
+    prepare(it);
+  }
+  el.drop.classList.add("compact");
+  refreshDock(); updateCost();
+}
+
+async function prepare(it) {
+  update(it);
+  try {
+    it.src = await toDecodable(it.file);
+    it.origURL = URL.createObjectURL(it.src);
+    const img = it.card.querySelector(".before");
+    img.src = it.origURL;
+    await img.decode().catch(() => {});
+    it.w = img.naturalWidth; it.h = img.naturalHeight;
+    if (!it.w) throw new Error("This photo can't be opened");
+    it.status = "idle";
+  } catch (err) {
+    it.status = "error"; it.err = err.message || String(err); it.prepFailed = true;
+  }
+  if (!S.items.includes(it)) return;
+  update(it); refreshDock();
+  scheduleAutoRun();
+}
+
+let autoTimer = 0;
+function scheduleAutoRun() {
+  if (S.mode !== "quick") return;
+  clearTimeout(autoTimer);
+  autoTimer = setTimeout(() => {
+    if (S.items.some((i) => i.status === "prep")) return scheduleAutoRun();
+    if (S.items.some((i) => i.status === "idle")) startRun(false);
+  }, 150);
+}
+
+el.input.addEventListener("change", () => { addFiles(el.input.files); el.input.value = ""; });
+let dragDepth = 0;
+window.addEventListener("dragenter", (e) => { e.preventDefault(); dragDepth++; el.drop.classList.add("over"); });
+window.addEventListener("dragleave", () => { if (--dragDepth <= 0) { dragDepth = 0; el.drop.classList.remove("over"); } });
+window.addEventListener("dragover", (e) => e.preventDefault());
+window.addEventListener("drop", (e) => {
+  e.preventDefault(); dragDepth = 0; el.drop.classList.remove("over");
+  if (e.dataTransfer && e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
+});
+window.addEventListener("paste", (e) => {
+  const files = [...((e.clipboardData && e.clipboardData.files) || [])];
+  if (files.length && !/^(INPUT|TEXTAREA)$/.test(document.activeElement && document.activeElement.tagName)) addFiles(files);
+});
+
+/* ---------------- cards ---------------- */
+function makeCard(it) {
+  const c = document.createElement("article");
+  c.className = "pcard";
+  c.innerHTML = `
+    <div class="cmp">
+      <img class="before" alt="" decoding="async"><img class="after" alt="" decoding="async">
+      <div class="handle"></div><span class="tag tl">Before</span><span class="tag tr">After</span>
+      <div class="state"><div class="spin"></div><div class="msg"></div></div>
+    </div>
+    <div class="pfoot">
+      <span class="name"></span><span class="badge"></span>
+      <button class="ib dl" type="button" title="Save">${ICON_DL}</button><button class="ib rm" type="button" title="Remove">${ICON_X}</button>
+    </div>`;
+  const name = c.querySelector(".name");
+  name.textContent = it.name; name.title = it.name;
+  const cmp = c.querySelector(".cmp");
+  bindCompare(cmp);
+  cmp.addEventListener("click", () => openLightbox(S.items.indexOf(it)));
+  c.querySelector(".dl").addEventListener("click", () => saveOne(it));
+  c.querySelector(".rm").addEventListener("click", () => removeItem(it));
+  it.card = c;
+  return c;
+}
+
+const STATUS_TEXT = { prep: "Opening…", idle: "Ready", queued: "Waiting", working: "Enhancing…", done: "Done", error: "Error" };
+function update(it, note) {
+  const c = it.card; if (!c) return;
+  c.className = "pcard " + it.status;
+  const badge = c.querySelector(".badge");
+  badge.className = "badge " + it.status;
+  badge.textContent = it.status === "done" ? (it.doneMode === "ai" ? "✓ AI" : "✓ Quick") : STATUS_TEXT[it.status];
+  const msg = c.querySelector(".msg");
+  msg.textContent = it.status === "error" ? it.err : note || (it.status === "working" ? (it.mode === "ai" ? "Gemini is enhancing…" : "Enhancing…") : it.status === "queued" ? "Waiting" : it.status === "prep" ? "Opening…" : "");
+  c.querySelector(".cmp").classList.toggle("has-after", !!it.outURL);
+  c.querySelector(".dl").disabled = !it.out;
+  c.title = it.status === "error" ? it.err : "";
+}
+
+function removeItem(it) {
+  const i = S.items.indexOf(it);
+  if (i < 0) return;
+  S.items.splice(i, 1);
+  it.card.remove();
+  if (it.origURL) URL.revokeObjectURL(it.origURL);
+  if (it.outURL) URL.revokeObjectURL(it.outURL);
+  if (!S.items.length) el.drop.classList.remove("compact");
+  refreshDock(); updateCost();
+}
+
+function bindCompare(cmp) {
+  const set = (e) => {
+    const r = cmp.getBoundingClientRect();
+    const x = Math.min(100, Math.max(0, ((e.clientX - r.left) / r.width) * 100));
+    cmp.style.setProperty("--x", x + "%");
+  };
+  cmp.addEventListener("pointermove", (e) => { if (e.pointerType === "mouse" || e.buttons) set(e); });
+  cmp.addEventListener("pointerdown", set);
+  cmp.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") cmp.style.setProperty("--x", "50%"); });
+}
+
+/* ---------------- dock ---------------- */
+function counts() {
+  const c = { prep: 0, idle: 0, queued: 0, working: 0, done: 0, error: 0 };
+  for (const it of S.items) c[it.status]++;
+  return c;
+}
+function refreshDock() {
+  const n = S.items.length;
+  el.dock.hidden = n === 0;
+  document.body.classList.toggle("has-dock", n > 0);
+  if (!n) return;
+  const c = counts();
+  const busy = c.queued + c.working > 0;
+  el.count.textContent = `${n} photo${n > 1 ? "s" : ""}`;
+  const parts = [];
+  if (c.done) parts.push(`${c.done} enhanced`);
+  if (busy) parts.push(`${c.queued + c.working} to go`);
+  if (c.error) parts.push(`${c.error} failed`);
+  if (c.prep) parts.push(`${c.prep} opening`);
+  el.status.textContent = parts.join(" · ");
+  el.progress.style.width = (c.done / n) * 100 + "%";
+  el.zip.disabled = el.each.disabled = el.folder.disabled = el.share.disabled = c.done === 0;
+  const pending = c.idle + S.items.filter((i) => i.status === "error" && !i.prepFailed).length;
+  const shareFirst = SHARE_MODE && !busy && c.done > 0 && !pending;
+  el.share.classList.toggle("primary", shareFirst);
+  el.run.classList.toggle("stop", busy);
+  el.run.classList.toggle("primary", !busy && !shareFirst);
+  const label = S.mode === "ai" ? "AI " : "";
+  if (busy) { el.run.textContent = "Stop"; el.run.disabled = false; }
+  else if (pending) { el.run.textContent = `${label}Enhance ${pending} photo${pending > 1 ? "s" : ""}`; el.run.disabled = false; }
+  else if (c.done) { el.run.textContent = `${label}Enhance all again`; el.run.disabled = false; }
+  else { el.run.textContent = "Enhance"; el.run.disabled = true; }
+}
+
+el.run.addEventListener("click", () => {
+  const c = counts();
+  if (c.queued + c.working > 0) { S.stop = true; toast("Stopping… the photo in progress will finish first"); return; }
+  const pending = S.items.some((i) => i.status === "idle" || (i.status === "error" && !i.prepFailed));
+  startRun(!pending);
+});
+el.clear.addEventListener("click", () => {
+  if (S.items.some((i) => i.status === "working" || i.status === "queued")) { toast("Press Stop first"); return; }
+  [...S.items].forEach(removeItem);
+});
+el.zip.addEventListener("click", () => downloadZip(S.items.filter((i) => i.out)));
+el.each.addEventListener("click", () => downloadEach(S.items.filter((i) => i.out)));
+el.folder.addEventListener("click", () => saveToFolder(S.items.filter((i) => i.out)));
+el.share.addEventListener("click", () => shareToPhotos(S.items.filter((i) => i.out)));
+if (SHARE_MODE) {
+  el.share.hidden = false;
+  el.each.hidden = true;
+  $("#autodl-row").hidden = true;
+  $("#share-note").hidden = false;
+  $("#lb-dl").textContent = "Save to Photos";
+} else if ("showDirectoryPicker" in window) el.folder.hidden = false;
+
+/* ---------------- processing queue ---------------- */
+const CONC = { quick: IS_TOUCH ? 1 : Math.max(1, Math.min(2, (navigator.hardwareConcurrency || 2) - 1)), ai: 2 };
+
+function startRun(redoAll) {
+  const mode = S.mode;
+  let ai = null;
+  if (mode === "ai") {
+    const key = el.key.value.trim();
+    if (!key) { toast("Add your Gemini API key first (AI Enhance section)"); el.key.focus(); return; }
+    ai = { key, model: getModel(), size: el.size.value, extra: el.extra.value.trim() };
+  }
+  let queued = 0;
+  for (const it of S.items) {
+    const eligible = it.status === "idle" || (it.status === "error" && !it.prepFailed) || (redoAll && it.status === "done");
+    if (!eligible) continue;
+    Object.assign(it, { status: "queued", err: null, mode, ai, strength: S.strength });
+    update(it); queued++;
+  }
+  if (!queued) return;
+  S.stop = false;
+  for (let k = 0; k < CONC[mode]; k++) if (!S.slots[k]) { S.slots[k] = true; runner(k); }
+  refreshDock();
+}
+
+async function runner(slot) {
+  try {
+    while (!S.stop) {
+      const it = S.items.find((i) => i.status === "queued");
+      if (!it) break;
+      it.status = "working"; update(it); refreshDock();
+      try {
+        const out = it.mode === "ai" ? await aiEnhance(it) : await quickEnhance(it, slot);
+        if (!S.items.includes(it)) continue;
+        if (it.outURL) URL.revokeObjectURL(it.outURL);
+        it.out = out.blob; it.outURL = URL.createObjectURL(out.blob); it.outW = out.w; it.outH = out.h;
+        it.card.querySelector(".after").src = it.outURL;
+        it.status = "done"; it.doneMode = it.mode; it.downloaded = false;
+      } catch (err) {
+        it.status = "error"; it.err = err.message || String(err);
+        console.error(it.name, err);
+      }
+      update(it); refreshDock();
+    }
+  } finally {
+    S.slots[slot] = false;
+    if (!S.slots.some(Boolean)) onAllDone();
+  }
+}
+
+function onAllDone() {
+  for (const it of S.items) if (it.status === "queued") { it.status = it.out ? "done" : "idle"; update(it); }
+  refreshDock();
+  const c = counts();
+  const fresh = S.items.filter((i) => i.status === "done" && !i.downloaded);
+  if (c.error) toast(`${c.error} photo${c.error > 1 ? "s" : ""} failed. Hover a card to see why, then press Enhance to retry`);
+  if (SHARE_MODE) { if (fresh.length && !c.error) toast(`${fresh.length} photo${fresh.length > 1 ? "s" : ""} ready ✓ Tap "Save to Photos"`); }
+  else if (el.autoDl.checked && fresh.length && !S.stop) downloadZip(fresh);
+  else if (fresh.length && !c.error) toast(`${fresh.length} photo${fresh.length > 1 ? "s" : ""} ready ✓`);
+  S.stop = false;
+}
+
+/* ----- shared: decode a photo (EXIF-rotated) onto a canvas ----- */
+async function drawToCanvas(it, maxSide) {
+  const img = new Image();
+  img.src = it.origURL;
+  await img.decode();
+  const W = img.naturalWidth, H = img.naturalHeight;
+  const sc = Math.min(1, maxSide / Math.max(W, H));
+  const w = Math.round(W * sc), h = Math.round(H * sc);
+  const cv = document.createElement("canvas");
+  cv.width = w; cv.height = h;
+  const ctx = cv.getContext("2d", { willReadFrequently: true });
+  if (!ctx) throw new Error("Photo too large for this device's memory");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, h);
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, 0, 0, w, h);
+  return { cv, ctx, w, h, W, H };
+}
+const freeCanvas = (cv) => { cv.width = 0; cv.height = 0; }; // iOS Safari frees canvas memory only like this
+const canvasToBlob = (cv, type, q) => new Promise((res, rej) => cv.toBlob((b) => (b ? res(b) : rej(new Error("Couldn't encode the image"))), type, q));
+
+/* ----- quick (on-device) ----- */
+const WORKER_SRC = $("#worker-src").textContent;
+let workerURL = null, mainThreadReady = false;
+try { workerURL = URL.createObjectURL(new Blob([WORKER_SRC], { type: "text/javascript" })); } catch {}
+function ensureMainThreadEnhance() {
+  if (mainThreadReady) return;
+  const s = document.createElement("script");
+  s.textContent = WORKER_SRC; // defines enhance() globally (fallback when Workers are unavailable)
+  document.head.appendChild(s);
+  mainThreadReady = true;
+}
+const pool = [];
+let jobSeq = 0;
+function getWorker(slot) {
+  if (pool[slot]) return pool[slot];
+  if (!workerURL) return null;
+  let w;
+  try { w = new Worker(workerURL); } catch { workerURL = null; return null; }
+  w.onmessage = (e) => { const cur = w.cur; if (cur && cur.job === e.data.job) { w.cur = null; e.data.ok ? cur.res(e.data) : cur.rej(new Error(e.data.error)); } };
+  w.onerror = (e) => {
+    e.preventDefault();
+    const cur = w.cur; w.cur = null; w.terminate(); pool[slot] = null;
+    if (cur) cur.rej(new Error("Photo too large for this device's memory"));
+  };
+  return (pool[slot] = w);
+}
+function enhanceBuffer(slot, buf, w, h, strength) {
+  const wk = getWorker(slot);
+  if (!wk) {
+    ensureMainThreadEnhance();
+    window.enhance(new Uint8ClampedArray(buf), w, h, strength);
+    return Promise.resolve(buf);
+  }
+  return new Promise((res, rej) => {
+    const job = ++jobSeq;
+    wk.cur = { job, res: (m) => res(m.buf), rej };
+    wk.postMessage({ job, buf, w, h, strength }, [buf]);
+  });
+}
+async function quickEnhance(it, slot) {
+  const { cv, ctx, w, h } = await drawToCanvas(it, MAX_SIDE);
+  try {
+    const data = ctx.getImageData(0, 0, w, h);
+    const buf = await enhanceBuffer(slot, data.data.buffer, w, h, it.strength);
+    ctx.putImageData(new ImageData(new Uint8ClampedArray(buf), w, h), 0, 0);
+    return { blob: await canvasToBlob(cv, "image/jpeg", 0.95), w, h };
+  } finally {
+    freeCanvas(cv);
+  }
+}
+
+/* ----- AI (Gemini) ----- */
+const RATIOS = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"];
+const TALL_WIDE = ["1:4", "4:1", "1:8", "8:1"];
+function closestRatio(r, model) {
+  const list = /nano-banana-2|3\.1-flash/.test(model) ? RATIOS.concat(TALL_WIDE) : RATIOS;
+  let best = "1:1", bd = Infinity;
+  for (const s of list) { const [a, b] = s.split(":").map(Number); const d = Math.abs(Math.log(r) - Math.log(a / b)); if (d < bd) { bd = d; best = s; } }
+  return best;
+}
+function buildPrompt(extra) {
+  let p = "Enhance this photograph like a professional photo retoucher. This is a quality-restoration task, not a creative edit: " +
+    "keep the exact same scene, framing, crop, people, faces, facial features, expressions, body shapes, clothing, text, logos and every object. " +
+    "Do not add, remove, move or restyle anything. Improve only the image quality: correct exposure and white balance, recover shadow and highlight detail, " +
+    "natural rich colours, better clarity and micro-contrast, sharpen soft details, remove noise, blur and JPEG compression artifacts. " +
+    "Keep natural skin texture (no plastic smoothing). The result must look like the same moment shot on a high-end camera: photorealistic, not a painting, not over-processed HDR.";
+  if (extra) p += " Additional instruction from the user (follow it, but keep everything else unchanged): " + extra;
+  return p;
+}
+function blobToB64(blob) {
+  return new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(",")[1]); fr.onerror = () => rej(fr.error); fr.readAsDataURL(blob); });
+}
+function b64ToBlob(b64, type) {
+  const bin = atob(b64), u = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  return new Blob([u], { type });
+}
+function apiError(status, data, model) {
+  const m = (data && data.error && data.error.message) || "";
+  if (/api key not valid|API_KEY_INVALID/i.test(m)) return "API key is not valid. Copy and paste it again";
+  if (status === 404) return `Model not found: ${model}`;
+  if (status === 403) return "This key has no access. Check billing/credits on its project. " + m.slice(0, 120);
+  if (status === 429) return "Quota or rate limit reached. Try again later or check billing";
+  if (/billing|prepay|credit/i.test(m)) return "Billing/credits needed: " + m.slice(0, 140);
+  return `Gemini error ${status}: ${m.slice(0, 160) || "unknown"}`;
+}
+
+async function aiEnhance(it) {
+  const cfg = it.ai;
+  const { cv, W, H } = await drawToCanvas(it, cfg.size === "4K" ? 3072 : 2048);
+  const b64 = await blobToB64(await canvasToBlob(cv, "image/jpeg", 0.92));
+  freeCanvas(cv);
+
+  const imageConfig = { aspectRatio: closestRatio(W / H, cfg.model) };
+  if (!/2\.5-flash-image/.test(cfg.model)) imageConfig.imageSize = cfg.size;
+  const body = {
+    contents: [{ role: "user", parts: [{ inlineData: { mimeType: "image/jpeg", data: b64 } }, { text: buildPrompt(cfg.extra) }] }],
+    generationConfig: { responseModalities: ["TEXT", "IMAGE"], imageConfig },
+  };
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(cfg.model)}:generateContent`;
+
+  let res, data;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": cfg.key }, body: JSON.stringify(body) });
+    } catch {
+      throw new Error("Network error. Check your internet connection");
+    }
+    data = await res.json().catch(() => ({}));
+    if ((res.status === 429 || res.status >= 500) && attempt < 3 && !S.stop) {
+      update(it, `Google is busy, retry ${attempt + 1}/3…`);
+      await sleep(4000 * (attempt + 1) ** 2);
+      update(it);
+      continue;
+    }
+    break;
+  }
+  if (!res.ok) throw new Error(apiError(res.status, data, cfg.model));
+
+  const cand = data.candidates && data.candidates[0];
+  const parts = (cand && cand.content && cand.content.parts) || [];
+  const imgPart = parts.find((p) => p.inlineData || p.inline_data);
+  if (!imgPart) {
+    const reason = (data.promptFeedback && data.promptFeedback.blockReason) || (cand && cand.finishReason) || "";
+    if (/SAFETY|PROHIBITED|BLOCK|RECITATION/i.test(reason)) throw new Error(`Google blocked this photo (${reason})`);
+    const txt = parts.map((p) => p.text || "").join(" ").trim();
+    throw new Error("The AI didn't return an image" + (txt ? ": " + txt.slice(0, 140) : reason ? ` (${reason})` : ""));
+  }
+  const inl = imgPart.inlineData || imgPart.inline_data;
+  const outBmp = await createImageBitmap(b64ToBlob(inl.data, inl.mimeType || inl.mime_type || "image/png"));
+
+  // crop back to the original aspect ratio if the model's ratio differs a little, then save as JPEG
+  const ow = outBmp.width, oh = outBmp.height, tr = W / H, orr = ow / oh;
+  let sx = 0, sy = 0, cw = ow, ch = oh;
+  if (Math.abs(orr / tr - 1) > 0.005) {
+    if (orr > tr) { cw = Math.round(oh * tr); sx = Math.round((ow - cw) / 2); }
+    else { ch = Math.round(ow / tr); sy = Math.round((oh - ch) / 2); }
+  }
+  const c2 = document.createElement("canvas");
+  c2.width = cw; c2.height = ch;
+  c2.getContext("2d").drawImage(outBmp, sx, sy, cw, ch, 0, 0, cw, ch);
+  outBmp.close();
+  const jpg = await canvasToBlob(c2, "image/jpeg", 0.95);
+  freeCanvas(c2);
+  return { blob: jpg, w: cw, h: ch };
+}
+
+/* ---------------- saving ---------------- */
+function outName(it) {
+  const base = it.name.replace(/\.[^.]+$/, "") || "photo";
+  return `${base}_enhanced.jpg`;
+}
+function uniqueNames(items) {
+  const seen = new Map();
+  return items.map((it) => {
+    let n = outName(it);
+    const k = n.toLowerCase();
+    const c = seen.get(k) || 0;
+    seen.set(k, c + 1);
+    if (c) n = n.replace(/\.jpg$/, ` (${c + 1}).jpg`);
+    return n;
+  });
+}
+function downloadBlob(blob, name) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+}
+function saveOne(it) {
+  if (!it.out) return;
+  if (SHARE_MODE) shareToPhotos([it]);
+  else { downloadBlob(it.out, outName(it)); it.downloaded = true; }
+}
+async function shareToPhotos(items) {
+  if (!items.length) return;
+  const names = uniqueNames(items);
+  const files = items.map((it, i) => new File([it.out], names[i], { type: "image/jpeg" }));
+  try {
+    await navigator.share({ files });
+    items.forEach((i) => (i.downloaded = true));
+  } catch (e) {
+    if (e && e.name === "AbortError") return;
+    if (e && e.name === "NotAllowedError" && self !== top) { toast('Saving is blocked inside this frame. Use "New tab" at the top, then try again'); return; }
+    toast("Couldn't share (" + ((e && e.message) || e) + "). Try fewer photos at once, or use ZIP");
+  }
+}
+async function downloadZip(items) {
+  if (!items.length) return;
+  if (items.length === 1) { downloadBlob(items[0].out, outName(items[0])); items[0].downloaded = true; toast("Downloaded ✓"); return; }
+  toast(`Making ZIP (${items.length} photos)…`);
+  const names = uniqueNames(items);
+  const zip = await makeZip(items.map((it, i) => ({ name: names[i], blob: it.out })));
+  const d = new Date(), pad = (x) => String(x).padStart(2, "0");
+  downloadBlob(zip, `enhanced_${items.length}photos_${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}.zip`);
+  items.forEach((i) => (i.downloaded = true));
+  toast(`ZIP downloaded ✓ (${items.length} photos)`);
+}
+async function downloadEach(items) {
+  const names = uniqueNames(items);
+  toast("If the browser asks about multiple downloads, choose Allow");
+  for (let i = 0; i < items.length; i++) { downloadBlob(items[i].out, names[i]); items[i].downloaded = true; await sleep(350); }
+}
+async function saveToFolder(items) {
+  let dir;
+  try { dir = await window.showDirectoryPicker({ mode: "readwrite" }); } catch { return; }
+  const names = uniqueNames(items);
+  let ok = 0;
+  for (let i = 0; i < items.length; i++) {
+    try {
+      const fh = await dir.getFileHandle(names[i], { create: true });
+      const ws = await fh.createWritable(); await ws.write(items[i].out); await ws.close();
+      items[i].downloaded = true; ok++;
+    } catch (e) { console.error(e); }
+  }
+  toast(`${ok} photo${ok === 1 ? "" : "s"} saved to the folder ✓`);
+}
+
+// Minimal ZIP writer (store, no compression: JPEGs don't compress anyway)
+const CRC_TABLE = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(u8) { let c = 0xffffffff; for (let i = 0; i < u8.length; i++) c = CRC_TABLE[(c ^ u8[i]) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; }
+async function makeZip(files) {
+  const enc = new TextEncoder(), chunks = [], central = [];
+  const d = new Date();
+  const dosTime = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1);
+  const dosDate = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+  let offset = 0;
+  for (const f of files) {
+    const data = new Uint8Array(await f.blob.arrayBuffer());
+    const name = enc.encode(f.name), crc = crc32(data), size = data.length;
+    const lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(8, 0, true);
+    lh.setUint16(10, dosTime, true); lh.setUint16(12, dosDate, true); lh.setUint32(14, crc, true);
+    lh.setUint32(18, size, true); lh.setUint32(22, size, true); lh.setUint16(26, name.length, true); lh.setUint16(28, 0, true);
+    chunks.push(lh.buffer, name, data);
+    const ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true);
+    ch.setUint16(10, 0, true); ch.setUint16(12, dosTime, true); ch.setUint16(14, dosDate, true); ch.setUint32(16, crc, true);
+    ch.setUint32(20, size, true); ch.setUint32(24, size, true); ch.setUint16(28, name.length, true);
+    ch.setUint16(30, 0, true); ch.setUint16(32, 0, true); ch.setUint16(34, 0, true); ch.setUint16(36, 0, true);
+    ch.setUint32(38, 0, true); ch.setUint32(42, offset, true);
+    central.push(ch.buffer, name);
+    offset += 30 + name.length + size;
+  }
+  const cdSize = central.reduce((s, b) => s + b.byteLength, 0);
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true);
+  end.setUint32(12, cdSize, true); end.setUint32(16, offset, true);
+  return new Blob([...chunks, ...central, end.buffer], { type: "application/zip" });
+}
+
+/* ---------------- lightbox ---------------- */
+const lb = { root: $("#lb"), cmp: $("#lb-cmp"), name: $("#lb-name"), dims: $("#lb-dims") };
+bindCompare(lb.cmp);
+function openLightbox(i) {
+  const it = S.items[i]; if (!it || !it.origURL) return;
+  S.lbIndex = i;
+  lb.cmp.querySelector(".before").src = it.origURL;
+  lb.cmp.querySelector(".after").src = it.outURL || "";
+  lb.cmp.classList.toggle("has-after", !!it.outURL);
+  lb.cmp.style.setProperty("--x", "50%");
+  lb.name.textContent = it.name;
+  lb.dims.textContent = `${it.w}×${it.h}` + (it.out ? ` → ${it.outW}×${it.outH} · ${(it.out.size / 1048576).toFixed(1)} MB` : "");
+  $("#lb-dl").disabled = !it.out;
+  lb.root.hidden = false;
+  sizeLightbox();
+}
+function sizeLightbox() {
+  const it = S.items[S.lbIndex]; if (!it || lb.root.hidden) return;
+  const ar = it.w / it.h || 1;
+  const maxW = window.innerWidth - 32 - (window.innerWidth > 560 ? 120 : 0), maxH = window.innerHeight - 110;
+  const width = Math.min(maxW, maxH * ar);
+  lb.cmp.style.width = width + "px";
+  lb.cmp.style.height = width / ar + "px";
+}
+function closeLightbox() { lb.root.hidden = true; S.lbIndex = -1; }
+function stepLightbox(d) {
+  const withImg = S.items.map((it, i) => (it.origURL ? i : -1)).filter((i) => i >= 0);
+  if (!withImg.length) return;
+  const pos = withImg.indexOf(S.lbIndex);
+  openLightbox(withImg[(pos + d + withImg.length) % withImg.length]);
+}
+$("#lb-x").addEventListener("click", closeLightbox);
+$("#lb-prev").addEventListener("click", () => stepLightbox(-1));
+$("#lb-next").addEventListener("click", () => stepLightbox(1));
+$("#lb-dl").addEventListener("click", () => { const it = S.items[S.lbIndex]; if (it) saveOne(it); });
+lb.root.addEventListener("click", (e) => { if (e.target === lb.root || e.target.classList.contains("lb-stage")) closeLightbox(); });
+window.addEventListener("resize", sizeLightbox);
+window.addEventListener("keydown", (e) => {
+  if (lb.root.hidden) return;
+  if (e.key === "Escape") closeLightbox();
+  else if (e.key === "ArrowLeft") stepLightbox(-1);
+  else if (e.key === "ArrowRight") stepLightbox(1);
+});
+
+/* ---------------- misc ---------------- */
+let toastTimer = 0;
+function toast(msg) {
+  const t = $("#toast");
+  t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => (t.hidden = true), 4200);
+}
+window.addEventListener("beforeunload", (e) => {
+  if (S.items.some((i) => i.status === "done" && !i.downloaded) || S.items.some((i) => i.status === "working")) { e.preventDefault(); e.returnValue = ""; }
+});
+
+setMode(S.mode);
+setStrength([0.6, 1, 1.5].includes(S.strength) ? S.strength : 1);
+syncAi();
+window.__enhance = S; // for debugging
+</script>
+</body></html>
